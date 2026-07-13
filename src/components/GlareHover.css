@@ -1,0 +1,62 @@
+.glare-hover {
+  position: relative;
+  overflow: hidden;
+  width: var(--gh-width, 100%);
+  height: var(--gh-height, 100%);
+  background: var(--gh-bg, transparent);
+  border-radius: var(--gh-br, inherit);
+  border: 1px solid var(--gh-border, transparent);
+  transition: border-color var(--gh-duration, 650ms) ease;
+}
+
+/* The glare / shine pseudo-element */
+.glare-hover::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -150%;
+  width: var(--gh-size, 250%);
+  height: 200%;
+  background: linear-gradient(
+    var(--gh-angle, -45deg),
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0) 35%,
+    var(--gh-rgba, rgba(255, 255, 255, 0.3)) 50%,
+    rgba(255, 255, 255, 0) 65%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(0deg);
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: left var(--gh-duration, 650ms) cubic-bezier(0.25, 1, 0.5, 1),
+              opacity var(--gh-duration, 650ms) ease;
+}
+
+/* Hover trigger */
+.glare-hover:hover::after {
+  left: 150%;
+  opacity: 1;
+}
+
+/* Play once animation trigger */
+.glare-hover--play-once:hover::after {
+  animation: glare-shine-animation var(--gh-duration, 650ms) cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes glare-shine-animation {
+  0% {
+    left: -150%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 150%;
+    opacity: 0;
+  }
+}
