@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { AlertTriangle, HelpCircle, AlertCircle, X } from "lucide-react";
+import { AlertTriangle, HelpCircle, AlertCircle, X, Loader2 } from "lucide-react";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ interface ConfirmModalProps {
   confirmLabel: string;
   cancelLabel?: string;
   severity?: "primary" | "danger" | "secondary";
+  isLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -22,6 +23,7 @@ export default function ConfirmModal({
   confirmLabel,
   cancelLabel = "Cancelar",
   severity = "primary",
+  isLoading = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -31,20 +33,20 @@ export default function ConfirmModal({
     switch (iconType) {
       case "danger":
         return (
-          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center text-red-500">
             <AlertCircle size={22} />
           </div>
         );
       case "info":
         return (
-          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-500">
             <HelpCircle size={22} />
           </div>
         );
       case "warning":
       default:
         return (
-          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
+          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-500">
             <AlertTriangle size={22} />
           </div>
         );
@@ -71,8 +73,8 @@ export default function ConfirmModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onCancel}
-            className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm"
+            onClick={() => !isLoading && onCancel()}
+            className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm"
           />
 
           {/* Modal Container */}
@@ -81,16 +83,17 @@ export default function ConfirmModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: "spring", duration: 0.4 }}
-            className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl border border-neutral-100 p-6 overflow-hidden z-10"
+            className="relative bg-white dark:bg-[#161616] rounded-2xl w-full max-w-md shadow-2xl border border-neutral-100 dark:border-[#262626] p-6 overflow-hidden z-10"
           >
             {/* Header */}
-            <div className="flex justify-between items-center pb-4 mb-4 border-b border-neutral-100">
-              <h3 className="text-lg font-bold text-neutral-900 tracking-tight">
+            <div className="flex justify-between items-center pb-4 mb-4 border-b border-neutral-100 dark:border-[#262626]">
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
                 {title}
               </h3>
               <button
                 onClick={onCancel}
-                className="text-neutral-400 hover:text-neutral-600 p-1.5 hover:bg-neutral-50 rounded-lg transition-colors cursor-pointer"
+                disabled={isLoading}
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1.5 hover:bg-neutral-50 dark:hover:bg-[#222] rounded-lg transition-colors cursor-pointer disabled:opacity-50"
               >
                 <X size={16} />
               </button>
@@ -100,26 +103,29 @@ export default function ConfirmModal({
             <div className="flex gap-4 items-start py-2 mb-6">
               {renderIcon()}
               <div className="flex-1">
-                <p className="text-sm text-neutral-600 font-light leading-relaxed">
+                <p className="text-sm text-neutral-600 dark:text-neutral-300 font-light leading-relaxed">
                   {message}
                 </p>
               </div>
             </div>
 
             {/* Actions/Footer */}
-            <div className="flex justify-end gap-3 pt-3 border-t border-neutral-100">
+            <div className="flex justify-end gap-3 pt-3 border-t border-neutral-100 dark:border-[#262626]">
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-5 py-2.5 bg-white hover:bg-neutral-50 active:scale-[0.98] text-neutral-700 text-xs font-semibold tracking-wide rounded-xl border border-neutral-200 transition-all cursor-pointer"
+                disabled={isLoading}
+                className="px-5 py-2.5 bg-white dark:bg-[#222] hover:bg-neutral-50 dark:hover:bg-[#2a2a2a] active:scale-[0.98] text-neutral-700 dark:text-neutral-200 text-xs font-semibold tracking-wide rounded-xl border border-neutral-200 dark:border-[#333] transition-all cursor-pointer disabled:opacity-50"
               >
                 {cancelLabel}
               </button>
               <button
                 type="button"
                 onClick={onConfirm}
-                className={`px-5 py-2.5 text-xs font-semibold tracking-wide rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${getConfirmButtonStyles()}`}
+                disabled={isLoading}
+                className={`px-5 py-2.5 text-xs font-semibold tracking-wide rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 ${getConfirmButtonStyles()}`}
               >
+                {isLoading && <Loader2 size={14} className="animate-spin" />}
                 {confirmLabel}
               </button>
             </div>

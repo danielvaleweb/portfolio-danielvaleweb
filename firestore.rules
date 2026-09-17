@@ -1,0 +1,41 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Projetos: Leitura pública para todos os visitantes da web e permissão de publicação
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Clientes e parceiros
+    match /clients/{clientId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Avaliações de clientes
+    match /evaluations/{evaluationId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Mensagens de contato e propostas (Leads)
+    match /leads/{leadId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Notificações administrativas
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Bloqueio padrão para qualquer outra coleção não mapeada
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

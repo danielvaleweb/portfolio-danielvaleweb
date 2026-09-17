@@ -103,7 +103,10 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, downloadU
             className="relative w-full h-full flex flex-col items-center justify-center z-10 p-4 md:p-10 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`relative w-full ${isVertical ? 'max-w-[min(95vw,500px)] aspect-[9/16]' : 'max-w-6xl aspect-video'} bg-black rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden`}>
+            <div 
+              onContextMenu={(e) => e.preventDefault()}
+              className={`relative w-full ${isVertical ? 'max-w-[min(95vw,500px)] aspect-[9/16]' : 'max-w-6xl aspect-video'} bg-black rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden select-none`}
+            >
               <div className={`w-full h-full relative group ${isVertical ? 'shorts-container' : ''}`}>
                 {isEmbed ? (
                   <iframe
@@ -120,6 +123,9 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, downloadU
                     src={videoUrl}
                     autoPlay
                     playsInline
+                    onContextMenu={(e) => e.preventDefault()}
+                    controlsList="nodownload noplaybackrate"
+                    disablePictureInPicture
                     className="w-full h-full object-cover"
                     onLoadedMetadata={() => {
                       if (videoRef.current) videoRef.current.volume = 1;
