@@ -48,7 +48,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("clients-updated", handleClientsUpdate);
       window.removeEventListener("evaluations-updated", handleEvaluationsUpdate);
-      
+
       // Clean up audio players
       (Object.values(audioPlayersRef.current) as HTMLAudioElement[]).forEach(player => player.pause());
     };
