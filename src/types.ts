@@ -81,7 +81,7 @@ export interface FileAsset {
   url: string;
   size: string; // e.g., '14.2 MB'
   type: 'video' | 'image' | 'document' | 'audio' | 'archive';
-  category: 'Imobiliário' | 'Publicidade' | 'Institucional' | 'Geral';
+  category: 'Imobiliário' | 'Publicidade' | 'Eventos' | 'Institucional' | 'Geral';
   projectId?: string;
   projectName?: string;
   uploadedAt: string;

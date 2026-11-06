@@ -18,7 +18,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({ lang }) => {
   const [time, setTime] = useState('08:00 - 16:00');
   const [location, setLocation] = useState('');
   const [type, setType] = useState<CalendarEvent['type']>('filmagem');
-  const [category, setCategory] = useState<'Imobiliário' | 'Publicidade' | 'Institucional' | 'Geral'>('Imobiliário');
+  const [category, setCategory] = useState<'Imobiliário' | 'Publicidade' | 'Eventos' | 'Institucional' | 'Geral'>('Imobiliário');
   const [projectName, setProjectName] = useState('');
 
   const reload = () => {
@@ -174,7 +174,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({ lang }) => {
                   >
                     <option value="Imobiliário">Imobiliário</option>
                     <option value="Publicidade">Publicidade</option>
-                    <option value="Institucional">Institucional</option>
+                    <option value="Eventos">Eventos</option>
                     <option value="Geral">Geral</option>
                   </select>
                 </div>

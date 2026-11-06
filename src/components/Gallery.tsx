@@ -150,8 +150,8 @@ export default function Gallery() {
   const videoProjects = allProjects.filter((project) => !project.isPhotoGallery);
 
   const imobiliarioVideos = videoProjects.filter(p => p.category === 'Imobiliário');
-  const publicitarioVideos = videoProjects.filter(p => p.category === 'Publicitário');
-  const institucionalVideos = videoProjects.filter(p => p.category === 'Institucional');
+  const publicitarioVideos = videoProjects.filter(p => p.category === 'Publicitário' || p.category === 'Publicidade');
+  const eventosVideos = videoProjects.filter(p => p.category === 'Eventos' || p.category === 'Institucional');
 
   if (videoProjects.length === 0) {
     return (
@@ -182,9 +182,9 @@ export default function Gallery() {
         projects={publicitarioVideos} 
       />
       <VideoSection 
-        title="Institucional" 
-        subtitle="Vídeos corporativos que transmitem a essência e os valores da sua marca." 
-        projects={institucionalVideos} 
+        title="Eventos" 
+        subtitle="Cobertura cinematográfica de eventos, conferências e momentos especiais." 
+        projects={eventosVideos} 
       />
     </section>
   );

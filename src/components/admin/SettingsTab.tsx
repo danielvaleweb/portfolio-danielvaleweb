@@ -34,7 +34,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ lang, setLang, theme, 
     setCounts({
       imobiliario: projects.filter(p => p.category === 'Imobiliário').length,
       publicidade: projects.filter(p => p.category === 'Publicitário' || p.category === 'Publicidade').length,
-      institucional: projects.filter(p => p.category === 'Institucional').length,
+      institucional: projects.filter(p => p.category === 'Eventos' || p.category === 'Institucional').length,
       clientes: getClients().length,
       notas: getNotes().length,
       arquivos: getFiles().length,
@@ -178,18 +178,18 @@ service cloud.firestore {
             <span className="text-[10px] text-gray-400">Espelhado em: <code className="font-mono">projetos/publicidade/itens/...</code></span>
           </div>
 
-          {/* Projetos Institucional */}
+          {/* Projetos Eventos */}
           <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-2xl p-5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-emerald-500">projetos_institucional</span>
+              <span className="text-xs font-bold text-emerald-500">projetos_eventos</span>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
                 {counts.institucional} docs
               </span>
             </div>
             <p className="text-[11px] text-gray-500 mb-2">
-              ID do Documento: <code className="bg-gray-100 dark:bg-[#202020] px-1.5 py-0.5 rounded text-black dark:text-white font-mono text-[10px]">HOSPITAL_EINSTEIN</code>
+              ID do Documento: <code className="bg-gray-100 dark:bg-[#202020] px-1.5 py-0.5 rounded text-black dark:text-white font-mono text-[10px]">EVENTO_EXEMPLO</code>
             </p>
-            <span className="text-[10px] text-gray-400">Espelhado em: <code className="font-mono">projetos/institucional/itens/...</code></span>
+            <span className="text-[10px] text-gray-400">Espelhado em: <code className="font-mono">projetos/eventos/itens/...</code></span>
           </div>
 
           {/* Clientes */}

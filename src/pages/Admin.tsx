@@ -318,9 +318,10 @@ export default function Admin() {
   const [expandedCategory, setExpandedCategory] = useState<Record<string, boolean>>({
     'Imobiliário': true,
     'Publicidade': true,
+    'Eventos': true,
     'Institucional': true,
   });
-  const [projectCategoryFilter, setProjectCategoryFilter] = useState<'Todas' | 'Imobiliário' | 'Publicitário' | 'Institucional'>('Todas');
+  const [projectCategoryFilter, setProjectCategoryFilter] = useState<'Todas' | 'Imobiliário' | 'Publicitário' | 'Eventos' | 'Institucional'>('Todas');
   const [newProjectCategory, setNewProjectCategory] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
@@ -586,8 +587,8 @@ export default function Admin() {
 
   const pieData = [
     { name: 'Imobiliário', value: realProjects.filter(p => p.category === 'Imobiliário').length, color: '#3B82F6' },
-    { name: 'Institucional', value: realProjects.filter(p => p.category === 'Institucional').length, color: '#10B981' },
-    { name: 'Publicitário', value: realProjects.filter(p => p.category === 'Publicitário').length, color: '#F59E0B' },
+    { name: 'Eventos', value: realProjects.filter(p => p.category === 'Eventos' || p.category === 'Institucional').length, color: '#10B981' },
+    { name: 'Publicitário', value: realProjects.filter(p => p.category === 'Publicitário' || p.category === 'Publicidade').length, color: '#F59E0B' },
   ].filter(d => d.value > 0);
 
   const [firestorePermissionError, setFirestorePermissionError] = useState(false);
@@ -650,7 +651,7 @@ export default function Admin() {
 
   const imobiliarioProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('imobil'));
   const publicidadeProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('publi'));
-  const institucionalProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('instituc'));
+  const eventosProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('event') || (p.category || '').toLowerCase().includes('instituc'));
 
   // Filtered projects for the projects view
   const filteredProjects = realProjects.filter(p => {
@@ -664,7 +665,7 @@ export default function Admin() {
     if (projectCategoryFilter === 'Todas') return true;
     if (projectCategoryFilter === 'Imobiliário') return (p.category || '').toLowerCase().includes('imobil');
     if (projectCategoryFilter === 'Publicitário' || projectCategoryFilter === 'Publicidade') return (p.category || '').toLowerCase().includes('publi');
-    if (projectCategoryFilter === 'Institucional') return (p.category || '').toLowerCase().includes('instituc');
+    if (projectCategoryFilter === 'Eventos' || projectCategoryFilter === 'Institucional') return (p.category || '').toLowerCase().includes('event') || (p.category || '').toLowerCase().includes('instituc');
     return true;
   });
 
@@ -812,7 +813,7 @@ export default function Admin() {
                       )}
                     </div>
 
-                    {/* Expandable Collections Tree: PROJETOS > IMOBILIARIO / PUBLICIDADE / INSTITUCIONAL > PROJETOS */}
+                    {/* Expandable Collections Tree: PROJETOS > IMOBILIARIO / PUBLICIDADE / EVENTOS > PROJETOS */}
                     {isProjects && !isSidebarCollapsed && projectsTreeOpen && (
                       <div className="mt-1 ml-3 pl-2 border-l border-gray-200 dark:border-[#222] space-y-1.5 py-1">
                         {/* 1. IMOBILIÁRIO */}
@@ -935,41 +936,41 @@ export default function Admin() {
                           )}
                         </div>
 
-                        {/* 3. INSTITUCIONAL */}
+                        {/* 3. EVENTOS */}
                         <div>
                           <div className="flex items-center justify-between px-2 py-1 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#181818] transition-colors group">
                             <button
                               onClick={() => {
-                                toggleCategoryExpand('Institucional');
-                                setProjectCategoryFilter('Institucional');
+                                toggleCategoryExpand('Eventos');
+                                setProjectCategoryFilter('Eventos');
                                 setActiveTab('projects');
                                 setIsCreating(false);
                                 setEditingProject(null);
                               }}
                               className="flex items-center gap-1.5 flex-1 text-left"
                             >
-                              <ChevronRight size={12} className={`transition-transform text-gray-400 ${expandedCategory['Institucional'] ? 'rotate-90' : ''}`} />
-                              <span className="tracking-wide uppercase text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Institucional</span>
-                              <span className="text-[10px] text-gray-400 font-mono">({institucionalProjects.length})</span>
+                              <ChevronRight size={12} className={`transition-transform text-gray-400 ${expandedCategory['Eventos'] ? 'rotate-90' : ''}`} />
+                              <span className="tracking-wide uppercase text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Eventos</span>
+                              <span className="text-[10px] text-gray-400 font-mono">({eventosProjects.length})</span>
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setActiveTab('projects');
-                                setNewProjectCategory('Institucional');
+                                setNewProjectCategory('Eventos');
                                 setEditingProject(null);
                                 setIsCreating(true);
                               }}
                               className="opacity-0 group-hover:opacity-100 p-0.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded transition-opacity"
-                              title="Novo projeto Institucional"
+                              title="Novo projeto de Eventos"
                             >
                               <Plus size={13} />
                             </button>
                           </div>
 
-                          {expandedCategory['Institucional'] && (
+                          {expandedCategory['Eventos'] && (
                             <div className="ml-3 pl-2 border-l border-gray-200/60 dark:border-[#222] space-y-0.5 mt-0.5">
-                              {institucionalProjects.map(proj => (
+                              {eventosProjects.map(proj => (
                                 <button
                                   key={proj.id}
                                   onClick={() => {
@@ -982,13 +983,13 @@ export default function Admin() {
                                       ? 'bg-emerald-500/15 text-emerald-500 font-bold' 
                                       : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
                                   }`}
-                                  title={`PROJETOS > INSTITUCIONAL > ${proj.title}`}
+                                  title={`PROJETOS > EVENTOS > ${proj.title}`}
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
                                   <span className="truncate">{proj.title}</span>
                                 </button>
                               ))}
-                              {institucionalProjects.length === 0 && (
+                              {eventosProjects.length === 0 && (
                                 <span className="text-[10px] text-gray-400 italic px-2 py-0.5 block">Nenhum projeto</span>
                               )}
                             </div>

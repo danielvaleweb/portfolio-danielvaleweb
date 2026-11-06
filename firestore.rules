@@ -20,6 +20,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /projetos_eventos/{docId} {
+      allow read, write: if true;
+    }
+
     // Estrutura hierárquica projetos/{categoria}/itens/{docId}
     match /projetos/{categoria} {
       allow read, write: if true;

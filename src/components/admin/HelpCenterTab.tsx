@@ -13,7 +13,7 @@ export const HelpCenterTab: React.FC<HelpCenterTabProps> = ({ lang, onNavigateTo
   const faqs = [
     {
       q: "Como as coleções do banco de dados são organizadas?",
-      a: "O sistema organiza os projetos automaticamente em coleções específicas conforme a categoria: 'projetos_imobiliario', 'projetos_publicidade' e 'projetos_institucional'. Além disso, cria uma estrutura hierárquica 'projetos/{categoria}/itens/{TITULO_DO_PROJETO}' onde o ID do documento é o nome do projeto formatado em letras maiúsculas e sem acentos (por exemplo: CASA_ALPHAVILLE)."
+      a: "O sistema organiza os projetos automaticamente em coleções específicas conforme a categoria: 'projetos_imobiliario', 'projetos_publicidade' e 'projetos_eventos'. Além disso, cria uma estrutura hierárquica 'projetos/{categoria}/itens/{TITULO_DO_PROJETO}' onde o ID do documento é o nome do projeto formatado em letras maiúsculas e sem acentos (por exemplo: EVENTO_GALA)."
     },
     {
       q: "Como o cliente avalia um projeto e grava depoimentos?",

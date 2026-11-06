@@ -19,7 +19,7 @@ export const FilesTab: React.FC<FilesTabProps> = ({ lang }) => {
   const [url, setUrl] = useState('');
   const [size, setSize] = useState('24.5 MB');
   const [type, setType] = useState<'video' | 'image' | 'document' | 'audio' | 'archive'>('video');
-  const [category, setCategory] = useState<'Imobiliário' | 'Publicidade' | 'Institucional' | 'Geral'>('Imobiliário');
+  const [category, setCategory] = useState<'Imobiliário' | 'Publicidade' | 'Eventos' | 'Institucional' | 'Geral'>('Imobiliário');
   const [projectName, setProjectName] = useState('');
 
   const reloadFiles = () => {
@@ -75,7 +75,7 @@ export const FilesTab: React.FC<FilesTabProps> = ({ lang }) => {
   };
 
   const filteredFiles = files.filter(f => {
-    const matchesCat = selectedCat === 'Todas' || f.category === selectedCat;
+    const matchesCat = selectedCat === 'Todas' || f.category === selectedCat || (selectedCat === 'Eventos' && f.category === 'Institucional');
     const matchesType = selectedType === 'todos' || f.type === selectedType;
     const matchesSearch = !search || 
       f.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -88,7 +88,7 @@ export const FilesTab: React.FC<FilesTabProps> = ({ lang }) => {
       {/* Top Filter and Search Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          {['Todas', 'Imobiliário', 'Publicidade', 'Institucional'].map((cat) => (
+          {['Todas', 'Imobiliário', 'Publicidade', 'Eventos'].map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCat(cat)}
@@ -192,7 +192,7 @@ export const FilesTab: React.FC<FilesTabProps> = ({ lang }) => {
                   >
                     <option value="Imobiliário">Imobiliário</option>
                     <option value="Publicidade">Publicidade</option>
-                    <option value="Institucional">Institucional</option>
+                    <option value="Eventos">Eventos</option>
                     <option value="Geral">Geral</option>
                   </select>
                 </div>

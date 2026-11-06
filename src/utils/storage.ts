@@ -339,13 +339,17 @@ export function getProjects(): Project[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((p: Project) => !deletedIds.includes(p.id) && !isFictitiousProject(p));
+        return parsed
+          .filter((p: Project) => !deletedIds.includes(p.id) && !isFictitiousProject(p))
+          .map((p: Project) => (p.category === 'Institucional' ? { ...p, category: 'Eventos' } : p));
       }
     }
   } catch (error) {
     console.warn("Notice reading projects from storage", error);
   }
-  return initialProjects.filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p));
+  return initialProjects
+    .filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p))
+    .map(p => (p.category === 'Institucional' ? { ...p, category: 'Eventos' } : p));
 }
 
 export function saveProjects(projects: Project[]): void {
@@ -370,17 +374,17 @@ export function formatProjectDocId(title: string): string {
     .toUpperCase();
 }
 
-export function getProjectCategoryCollection(category?: string): 'projetos_imobiliario' | 'projetos_publicidade' | 'projetos_institucional' {
+export function getProjectCategoryCollection(category?: string): 'projetos_imobiliario' | 'projetos_publicidade' | 'projetos_eventos' | 'projetos_institucional' {
   const cat = (category || "").toLowerCase();
   if (cat.includes("publi")) return "projetos_publicidade";
-  if (cat.includes("institu")) return "projetos_institucional";
+  if (cat.includes("event") || cat.includes("institu")) return "projetos_eventos";
   return "projetos_imobiliario";
 }
 
-export function getCategorySlug(category?: string): 'imobiliario' | 'publicidade' | 'institucional' {
+export function getCategorySlug(category?: string): 'imobiliario' | 'publicidade' | 'eventos' | 'institucional' {
   const cat = (category || "").toLowerCase();
   if (cat.includes("publi")) return "publicidade";
-  if (cat.includes("institu")) return "institucional";
+  if (cat.includes("event") || cat.includes("institu")) return "eventos";
   return "imobiliario";
 }
 
@@ -738,7 +742,7 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
 
     return {
       success: true,
-      message: `Sincronização bem-sucedida! Todas as coleções (Projetos Imobiliário, Publicidade, Institucional, Clientes, Notas, Arquivos, Conversas, E-mails, Calendário e Base de Conhecimento) foram sincronizadas com o Cloud Firestore.`
+      message: `Sincronização bem-sucedida! Todas as coleções (Projetos Imobiliário, Publicidade, Eventos, Clientes, Notas, Arquivos, Conversas, E-mails, Calendário e Base de Conhecimento) foram sincronizadas com o Cloud Firestore.`
     };
   } catch (err: any) {
     console.error("Erro na sincronização completa:", err);

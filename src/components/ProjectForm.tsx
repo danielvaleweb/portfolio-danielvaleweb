@@ -207,7 +207,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
               className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors appearance-none"
             >
               <option value="Imobiliário">Imobiliário</option>
-              <option value="Institucional">Institucional</option>
+              <option value="Eventos">Eventos</option>
               <option value="Publicitário">Publicitário</option>
               <option value="Fotos">Fotos</option>
             </select>
