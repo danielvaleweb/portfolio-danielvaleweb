@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon } from 'lucide-react';
+import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil } from 'lucide-react';
 import { Project, Client } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
-import { getProjects, addProject, updateProject, deleteProject, getClients, addClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
+import { getProjects, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
 import { Notification } from '../types';
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
@@ -344,6 +344,7 @@ export default function Admin() {
 
   const [realClients, setRealClients] = useState<Client[]>([]);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientCompany, setNewClientCompany] = useState('');
@@ -590,6 +591,18 @@ export default function Admin() {
     }
   };
 
+  const handleEditClient = (client: Client) => {
+    setEditingClient(client);
+    setNewClientName(client.name || '');
+    setNewClientEmail(client.email || '');
+    setNewClientCompany(client.company || '');
+    setNewClientLogo(client.logoUrl || '');
+    setClientPhotoPreview(client.logoUrl || null);
+    setClientPhotoFile(null);
+    setClientSaveFeedback(null);
+    setIsCreatingClient(true);
+  };
+
   const handleSaveClient = async () => {
     const trimmedName = newClientName.trim();
     if (!trimmedName) return;
@@ -638,12 +651,21 @@ export default function Admin() {
     }
 
     try {
-      await addClient({
-        name: trimmedName,
-        email: newClientEmail.trim() || undefined,
-        company: newClientCompany.trim() || undefined,
-        logoUrl: finalLogoUrl || ''
-      });
+      if (editingClient) {
+        updateClient(editingClient.id, {
+          name: trimmedName,
+          email: newClientEmail.trim() || undefined,
+          company: newClientCompany.trim() || undefined,
+          logoUrl: finalLogoUrl || ''
+        });
+      } else {
+        await addClient({
+          name: trimmedName,
+          email: newClientEmail.trim() || undefined,
+          company: newClientCompany.trim() || undefined,
+          logoUrl: finalLogoUrl || ''
+        });
+      }
       setRealClients(getClients());
       setNewClientName('');
       setNewClientEmail('');
@@ -651,6 +673,7 @@ export default function Admin() {
       setNewClientLogo('');
       setClientPhotoFile(null);
       setClientPhotoPreview(null);
+      setEditingClient(null);
       setIsCreatingClient(false);
     } catch (err: any) {
       console.error("Erro ao salvar cliente:", err);
@@ -1450,17 +1473,27 @@ service cloud.firestore {
                   <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 content-start pb-6">
                     {realClients.map(client => (
                       <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm hover:border-gray-300 dark:hover:border-[#333] transition-all group">
-                        <button
-                          onClick={() => {
-                            setClientToDelete(client);
-                            setIsDeleteClientModalOpen(true);
-                          }}
-                          className="absolute top-3 right-3 p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                          title={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
-                          aria-label={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="absolute top-3 right-3 flex items-center gap-1">
+                          <button
+                            onClick={() => handleEditClient(client)}
+                            className="p-2 rounded-full text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+                            title={lang === 'pt' ? 'Editar cliente' : 'Edit client'}
+                            aria-label={lang === 'pt' ? 'Editar cliente' : 'Edit client'}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setClientToDelete(client);
+                              setIsDeleteClientModalOpen(true);
+                            }}
+                            className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                            title={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
+                            aria-label={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                         <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center mb-3 border border-gray-200 dark:border-[#333] shadow-inner">
                            {client.logoUrl?.trim() ? (
                              <img src={client.logoUrl.trim()} alt={client.name} className="w-full h-full object-cover" />
@@ -1693,11 +1726,14 @@ service cloud.firestore {
         <div className="absolute inset-0 bg-black/60 z-[300] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-black dark:text-white">Adicionar Novo Cliente</h3>
+              <h3 className="text-lg font-bold text-black dark:text-white">
+                {editingClient ? 'Editar Cliente' : 'Adicionar Novo Cliente'}
+              </h3>
               <button
                 onClick={() => {
                   if (!isSavingClient) {
                     setIsCreatingClient(false);
+                    setEditingClient(null);
                     setClientSaveFeedback(null);
                     setNewClientName('');
                     setNewClientEmail('');
@@ -1893,6 +1929,7 @@ service cloud.firestore {
                 onClick={() => {
                   if (!isSavingClient) {
                     setIsCreatingClient(false);
+                    setEditingClient(null);
                     setClientSaveFeedback(null);
                     setNewClientName('');
                     setNewClientEmail('');
@@ -1915,10 +1952,10 @@ service cloud.firestore {
                 {isSavingClient ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Salvando Cliente...
+                    {editingClient ? 'Atualizando Cliente...' : 'Salvando Cliente...'}
                   </>
                 ) : (
-                  'Salvar Cliente'
+                  editingClient ? 'Salvar Alterações' : 'Salvar Cliente'
                 )}
               </button>
             </div>
