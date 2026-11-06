@@ -38,7 +38,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {/* Header */}
             <div className="p-8 flex justify-between items-center border-b border-gray-100">
               <span className="text-xl font-bold tracking-tighter">DANIEL VALE<span className="text-red-600">.</span></span>
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
@@ -70,11 +70,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <div className="space-y-4">
                 <div className="flex items-center space-x-3 text-gray-600">
                   <Mail className="w-5 h-5" />
-                  <span className="text-sm">contato@danielvale.com</span>
+                  <span className="text-sm">contato@danielvale.com.br</span>
                 </div>
                 <div className="flex items-center space-x-3 text-gray-600">
                   <Phone className="w-5 h-5" />
-                  <span className="text-sm">+55 (00) 00000-0000</span>
+                  <span className="text-sm">+55 32 99828-8650</span>
                 </div>
                 <div className="flex items-center space-x-3 text-gray-600">
                   <MapPin className="w-5 h-5" />
@@ -83,9 +83,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               </div>
 
               <div className="flex space-x-4">
-                <a 
-                  href="https://instagram.com/danielvaleweb" 
-                  target="_blank" 
+                <a
+                  href="https://instagram.com/danielvaleweb"
+                  target="_blank"
                   rel="noreferrer"
                   className="p-3 bg-black text-white rounded-xl hover:bg-red-600 transition-colors"
                 >
