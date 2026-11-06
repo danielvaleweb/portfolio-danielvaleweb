@@ -77,7 +77,11 @@ const t = {
 export default function ProjectForm({ project, initialCategory, onSave, onCancel, onDelete, onNavigateToClients, lang = "pt" }: ProjectFormProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [formData, setFormData] = useState<Partial<Project>>(
-    project || {
+    project ? {
+      ...project,
+      showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
+      images: project.images || [],
+    } : {
       title: '',
       category: initialCategory || 'Imobiliário',
       thumbnail: '',
@@ -85,7 +89,8 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       description: '',
       tags: [],
       clientId: '',
-      images: project?.images || [],
+      showClientInfo: false,
+      images: [],
       allowDownload: false,
       downloadUrl: '',
     }
@@ -115,6 +120,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       setFormData(prev => ({
         ...prev,
         ...project,
+        showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
         images: (project.images && project.images.length > 0) ? project.images : (prev.images || [])
       }));
     }
@@ -436,32 +442,65 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center gap-2">
-              <User size={14} />
-              Client
-            </label>
-            <select 
-              name="clientId"
-              value={formData.clientId || ''} 
-              onChange={handleChange}
-              className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors appearance-none"
-            >
-              <option value="">{t[lang].selectClient}</option>
-              {clients.map(client => (
-                <option key={client.id} value={client.id}>
-                  {client.name}{client.company ? ` (${client.company})` : ''}
-                </option>
-              ))}
-            </select>
-            {clients.length === 0 && (
-              <button 
-                type="button" 
-                onClick={onNavigateToClients}
-                className="text-[12px] font-bold text-[#3B82F6] hover:text-[#2563EB] text-left mt-2 block w-full"
-              >
-                + Adicionar novo cliente
-              </button>
+          <div className="space-y-3 md:col-span-2 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#262626] rounded-2xl p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center flex-shrink-0">
+                  <User size={18} />
+                </div>
+                <div>
+                  <h4 className="text-[14px] font-bold text-gray-900 dark:text-white">
+                    {lang === 'pt' ? 'Informações do Cliente' : 'Client Information'}
+                  </h4>
+                  <p className="text-[12px] text-gray-500 dark:text-[#888] leading-tight">
+                    {lang === 'pt' 
+                      ? 'Ativar card de contato ("Fale com", WhatsApp e Instagram) na página deste projeto'
+                      : 'Show contact card ("Fale com", WhatsApp, and Instagram) on this project page'}
+                  </p>
+                </div>
+              </div>
+
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                <input 
+                  type="checkbox" 
+                  name="showClientInfo" 
+                  className="sr-only" 
+                  checked={Boolean(formData.showClientInfo)} 
+                  onChange={handleChange} 
+                />
+                <div className={`block w-14 h-8 rounded-full transition-colors ${formData.showClientInfo ? 'bg-[#25D366]' : 'bg-gray-200 dark:bg-[#333]'}`}></div>
+                <div className={`dot absolute left-1 top-1 bg-white dark:bg-[#1a1a1a] w-6 h-6 rounded-full transition-transform ${formData.showClientInfo ? 'transform translate-x-6' : ''}`}></div>
+              </label>
+            </div>
+
+            {formData.showClientInfo && (
+              <div className="pt-4 border-t border-gray-200 dark:border-[#262626] space-y-2 animate-in fade-in duration-200">
+                <label className="text-[12px] font-bold text-gray-600 dark:text-[#aaa] uppercase tracking-wider block">
+                  {lang === 'pt' ? 'Selecionar Cliente' : 'Select Client'}
+                </label>
+                <select 
+                  name="clientId"
+                  value={formData.clientId || ''} 
+                  onChange={handleChange}
+                  className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:border-[#444] transition-colors appearance-none text-sm"
+                >
+                  <option value="">{t[lang].selectClient}</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}{client.company ? ` (${client.company})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {clients.length === 0 && (
+                  <button 
+                    type="button" 
+                    onClick={onNavigateToClients}
+                    className="text-[12px] font-bold text-[#3B82F6] hover:text-[#2563EB] text-left mt-1 block w-full cursor-pointer"
+                  >
+                    + Adicionar novo cliente
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

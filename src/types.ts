@@ -12,6 +12,7 @@ export interface Project {
   isFavorite?: boolean;
   views?: number;
   clientId?: string;
+  showClientInfo?: boolean;
   allowDownload?: boolean;
   downloadCode?: string;
   createdAt?: number;

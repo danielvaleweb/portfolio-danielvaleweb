@@ -314,6 +314,7 @@ function mapFirestoreProject(docId: string, data: any): Project {
     isFavorite: Boolean(data.isFavorite),
     views: typeof data.views === "number" ? data.views : 0,
     clientId: data.clientId || "",
+    showClientInfo: data.showClientInfo !== undefined ? Boolean(data.showClientInfo) : Boolean(data.clientId),
     allowDownload: Boolean(data.allowDownload),
     downloadCode: data.downloadCode || "",
     createdAt,
@@ -489,6 +490,7 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
     id,
     thumbnail,
     downloadCode,
+    showClientInfo: newProject.showClientInfo !== undefined ? newProject.showClientInfo : Boolean(newProject.clientId),
     createdAt: newProject.createdAt || now,
   };
   
