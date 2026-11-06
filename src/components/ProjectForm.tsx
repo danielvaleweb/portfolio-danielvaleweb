@@ -5,6 +5,7 @@ import { Project, Client } from '../types';
 import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check } from 'lucide-react';
 import { getClients } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
+import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
 
 interface ProjectFormProps {
   project?: Project | null;
@@ -108,6 +109,31 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     return () => window.removeEventListener("clients-updated", updateClients);
   }, []);
 
+  // Mantém formData sincronizado se o projeto mudar e recupera fotos do IndexedDB
+  useEffect(() => {
+    if (project) {
+      setFormData(prev => ({
+        ...prev,
+        ...project,
+        images: (project.images && project.images.length > 0) ? project.images : (prev.images || [])
+      }));
+    }
+  }, [project]);
+
+  useEffect(() => {
+    if (project?.id) {
+      getGalleryFromIndexedDB(project.id).then((cached) => {
+        if (cached && cached.length > 0) {
+          setFormData(prev => {
+            const existing = prev.images || [];
+            const merged = Array.from(new Set([...existing, ...cached]));
+            return { ...prev, images: merged };
+          });
+        }
+      });
+    }
+  }, [project?.id]);
+
   const [tagInput, setTagInput] = useState('');
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -144,59 +170,61 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     }));
   };
 
-  const uploadSingleGalleryFile = (item: UploadingGalleryItem, file: File): Promise<string> => {
+  const uploadSingleGalleryFile = async (item: UploadingGalleryItem, file: File): Promise<string> => {
+    // 1. Comprime a foto no cliente (reduz de ~8MB para ~100KB, evitando estouro de cota e upload lento)
+    let compressedDataUrl = '';
+    try {
+      compressedDataUrl = await compressImageToDataUrl(file, 1600, 0.82);
+    } catch {
+      // Se falhar a compressão, fallback
+    }
+
     return new Promise((resolve) => {
       let resolved = false;
 
-      const fallbackWithFileReader = () => {
+      const fallbackWithCompressed = () => {
         if (resolved) return;
         resolved = true;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          // Anima suavemente o progresso para que a miniatura aumente a opacidade de forma fluida
-          let currentP = Math.max(item.progress, 20);
-          updateItemProgress(item.id, currentP, 'uploading');
-          const interval = setInterval(() => {
-            currentP += Math.floor(Math.random() * 20) + 15;
-            if (currentP >= 100) {
-              clearInterval(interval);
-              updateItemProgress(item.id, 100, 'done', dataUrl);
-              setTimeout(() => resolve(dataUrl), 200);
-            } else {
-              updateItemProgress(item.id, currentP, 'uploading');
-            }
-          }, 70);
-        };
-        reader.onerror = () => {
-          updateItemProgress(item.id, 100, 'error');
-          resolve('');
-        };
-        reader.readAsDataURL(file);
+        const finalUrl = compressedDataUrl || item.previewUrl;
+        let currentP = Math.max(item.progress, 30);
+        updateItemProgress(item.id, currentP, 'uploading');
+        const interval = setInterval(() => {
+          currentP += Math.floor(Math.random() * 20) + 15;
+          if (currentP >= 100) {
+            clearInterval(interval);
+            updateItemProgress(item.id, 100, 'done', finalUrl);
+            setTimeout(() => resolve(finalUrl), 150);
+          } else {
+            updateItemProgress(item.id, currentP, 'uploading');
+          }
+        }, 50);
       };
 
       const timeoutTimer = setTimeout(() => {
-        console.warn("Storage upload timeout, fallback to data URL");
-        fallbackWithFileReader();
-      }, 9000);
+        console.warn("Storage upload timeout, salvando imagem compactada localmente");
+        fallbackWithCompressed();
+      }, 7000);
 
       try {
-        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^/.]+$/, "") + ".jpg";
         const storageRef = ref(storage, `projects/gallery_${Date.now()}_${cleanName}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        
+        // Se temos o dataUrl comprimido, converte para Blob leve (~100KB); se não, usa o arquivo original
+        const uploadPayload = compressedDataUrl ? dataUrlToBlob(compressedDataUrl) : file;
+        const uploadTask = uploadBytesResumable(storageRef, uploadPayload);
 
         uploadTask.on(
           'state_changed',
           (snapshot) => {
             if (snapshot.totalBytes > 0 && !resolved) {
               const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-              updateItemProgress(item.id, Math.min(Math.max(pct, 15), 98), 'uploading');
+              updateItemProgress(item.id, Math.min(Math.max(pct, 20), 98), 'uploading');
             }
           },
           (err) => {
             clearTimeout(timeoutTimer);
-            console.warn("Storage upload error, fallback to data URL:", err);
-            fallbackWithFileReader();
+            console.warn("Aviso upload Storage, utilizando versão compactada:", err);
+            fallbackWithCompressed();
           },
           async () => {
             clearTimeout(timeoutTimer);
@@ -207,13 +235,13 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
               updateItemProgress(item.id, 100, 'done', downloadUrl);
               resolve(downloadUrl);
             } catch {
-              fallbackWithFileReader();
+              fallbackWithCompressed();
             }
           }
         );
       } catch (err) {
         clearTimeout(timeoutTimer);
-        fallbackWithFileReader();
+        fallbackWithCompressed();
       }
     });
   };
@@ -244,10 +272,16 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
         const file = validFiles[index];
         const url = await uploadSingleGalleryFile(item, file);
         if (url) {
-          setFormData(prev => ({
-            ...prev,
-            images: [...(prev.images || []), url]
-          }));
+          setFormData(prev => {
+            const nextImages = [...(prev.images || []), url];
+            if (project?.id) {
+              saveGalleryToIndexedDB(project.id, nextImages);
+            }
+            return {
+              ...prev,
+              images: nextImages
+            };
+          });
         }
       })
     );
@@ -259,7 +293,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       });
       setUploadingGalleryItems(prev => prev.filter(i => !newItems.some(ni => ni.id === i.id)));
       setUploadingGallery(false);
-    }, 850);
+    }, 750);
 
     if (galleryInputRef.current) galleryInputRef.current.value = '';
   };
@@ -267,18 +301,30 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   const handleAddGalleryUrl = () => {
     const trimmed = galleryUrlInput.trim();
     if (!trimmed) return;
-    setFormData(prev => ({
-      ...prev,
-      images: [...(prev.images || []), trimmed]
-    }));
+    setFormData(prev => {
+      const nextImages = [...(prev.images || []), trimmed];
+      if (project?.id) {
+        saveGalleryToIndexedDB(project.id, nextImages);
+      }
+      return {
+        ...prev,
+        images: nextImages
+      };
+    });
     setGalleryUrlInput('');
   };
 
   const handleRemoveGalleryImage = (indexToRemove: number) => {
-    setFormData(prev => ({
-      ...prev,
-      images: (prev.images || []).filter((_, idx) => idx !== indexToRemove)
-    }));
+    setFormData(prev => {
+      const nextImages = (prev.images || []).filter((_, idx) => idx !== indexToRemove);
+      if (project?.id) {
+        saveGalleryToIndexedDB(project.id, nextImages);
+      }
+      return {
+        ...prev,
+        images: nextImages
+      };
+    });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'thumbnail' | 'videoUrl' | 'downloadUrl') => {
@@ -319,6 +365,9 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (project?.id && formData.images && formData.images.length > 0) {
+      saveGalleryToIndexedDB(project.id, formData.images);
+    }
     onSave(formData);
   };
 

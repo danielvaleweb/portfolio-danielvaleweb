@@ -19,6 +19,7 @@ import {
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { storage, db } from "../firebase";
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { saveGalleryToIndexedDB, getGalleryFromIndexedDB } from "./imageStorage";
 
 const STORAGE_KEY = "daniel_vale_projects";
 const DELETED_PROJECTS_KEY = "daniel_vale_deleted_project_ids";
@@ -356,7 +357,33 @@ export function saveProjects(projects: Project[]): void {
   try {
     const deletedIds = getDeletedProjectIds();
     const filtered = projects.filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+
+    // Salva fotos em IndexedDB para garantir capacidade ilimitada sem estourar o localStorage
+    filtered.forEach(p => {
+      if (p.images && p.images.length > 0) {
+        saveGalleryToIndexedDB(p.id, p.images);
+      }
+    });
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    } catch (quotaError) {
+      console.warn("Aviso de cota do localStorage excedida. Armazenando metadados locais enquanto as fotos completas estão seguras no IndexedDB:", quotaError);
+      // Se estourar a cota de 5MB do navegador, salva versão compacta no localStorage enquanto IndexedDB mantém todas as fotos
+      const safeForLocalStorage = filtered.map(p => {
+        if (p.images && p.images.length > 0) {
+          return {
+            ...p,
+            images: p.images.slice(0, 5).map(img => img.length > 100000 ? img.substring(0, 100) : img)
+          };
+        }
+        return p;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(safeForLocalStorage));
+      } catch {}
+    }
+
     window.dispatchEvent(new Event("projects-updated"));
   } catch (error) {
     console.warn("Notice saving projects to storage", error);
@@ -414,6 +441,10 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
     downloadCode
   };
   
+  if (project.images && project.images.length > 0) {
+    saveGalleryToIndexedDB(project.id, project.images);
+  }
+
   // Update local cache immediately for zero-lag UI
   list.unshift(project);
   saveProjects(list);
@@ -462,6 +493,10 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
       thumbnail,
       downloadCode
     };
+
+    if (updatedItem.images && updatedItem.images.length > 0) {
+      saveGalleryToIndexedDB(id, updatedItem.images);
+    }
 
     list[index] = updatedItem;
     saveProjects(list);
@@ -1313,7 +1348,34 @@ if (typeof window !== "undefined") {
           .map(docSnap => mapFirestoreProject(docSnap.id, docSnap.data()))
           .filter(p => !isFictitiousProject(p));
         
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreProjects));
+        // Preserva imagens locais para que dados recém-salvos nunca sejam apagados por snapshot do Firestore
+        const localProjects = getProjects();
+        const mergedProjects = firestoreProjects.map(fp => {
+          const lp = localProjects.find(p => p.id === fp.id);
+          if (lp && lp.images && lp.images.length > 0) {
+            if (!fp.images || fp.images.length === 0 || fp.images.length < lp.images.length) {
+              return { ...fp, images: lp.images };
+            }
+          }
+          return fp;
+        });
+
+        // Mantém projetos criados localmente ainda não refletidos no Firestore
+        localProjects.forEach(lp => {
+          if (!mergedProjects.some(mp => mp.id === lp.id) && !deletedIds.includes(lp.id) && !isFictitiousProject(lp)) {
+            mergedProjects.push(lp);
+          }
+        });
+
+        mergedProjects.forEach(p => {
+          if (p.images && p.images.length > 0) {
+            saveGalleryToIndexedDB(p.id, p.images);
+          }
+        });
+
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedProjects));
+        } catch {}
         window.dispatchEvent(new Event("projects-updated"));
       }
     }, (error) => {

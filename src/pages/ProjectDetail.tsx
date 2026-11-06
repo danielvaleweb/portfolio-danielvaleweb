@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Project, Evaluation, Client } from "../types";
 import { getProjects, getEvaluations, updateProject, addNotification, getClients } from "../utils/storage";
+import { getGalleryFromIndexedDB } from "../utils/imageStorage";
 import { motion, AnimatePresence } from "motion/react";
 import CustomVideoPlayer from "../components/CustomVideoPlayer";
 import { ArrowLeft, Download, Lock, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle, User, Phone, Instagram, MessageCircle, Mail, Image as ImageIcon, Maximize2 } from "lucide-react";
@@ -36,6 +37,20 @@ export default function ProjectDetail() {
 
       if (foundProject) {
         setProject(foundProject);
+
+        // Busca fotos salvas em IndexedDB caso existam mais imagens locais
+        getGalleryFromIndexedDB(foundProject.id).then((cached) => {
+          if (cached && cached.length > 0) {
+            setProject(prev => {
+              if (prev && prev.id === foundProject.id) {
+                const existing = prev.images || [];
+                const merged = Array.from(new Set([...existing, ...cached]));
+                return { ...prev, images: merged };
+              }
+              return prev;
+            });
+          }
+        });
 
         // Find evaluation linked to this project
         const allEvals = getEvaluations();
@@ -667,8 +682,11 @@ export default function ProjectDetail() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#FF6321] font-bold block mb-0.5">
-                      Corretor / Parceiro
+                    <span 
+                      className="text-xs text-neutral-400 font-light block mb-0.5 tracking-wide"
+                      style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 300 }}
+                    >
+                      Cliente
                     </span>
                     <h4 className="font-bold text-neutral-900 text-base leading-tight truncate">
                       {client.name}
@@ -688,10 +706,10 @@ export default function ProjectDetail() {
                       href={`https://wa.me/55${client.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi o imóvel "${project.title}" no portfólio do Daniel Vale e gostaria de mais informações.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white text-xs font-bold py-3 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.98] text-white text-xs font-bold py-3 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <MessageCircle size={16} />
-                      WhatsApp: {client.phone}
+                      WhatsApp
                     </a>
                   )}
 
@@ -703,7 +721,7 @@ export default function ProjectDetail() {
                       className="w-full bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-90 active:scale-[0.98] text-white text-xs font-bold py-3 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Instagram size={16} />
-                      Instagram: {client.instagram.startsWith('@') || client.instagram.includes('/') ? client.instagram : `@${client.instagram}`}
+                      Instagram
                     </a>
                   )}
 
