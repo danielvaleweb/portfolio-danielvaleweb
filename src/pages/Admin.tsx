@@ -4,7 +4,7 @@ import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHoriz
 import { Project, Client } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
-import { getProjects, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
+import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
 import { Notification } from '../types';
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
@@ -767,12 +767,12 @@ export default function Admin() {
   const publicidadeProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('publi'));
   const eventosProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('event') || (p.category || '').toLowerCase().includes('instituc'));
 
-  // Filtered projects for the projects view
-  const filteredProjects = realProjects.filter(p => {
+  // Filtered projects for the projects view (mais recentes primeiro)
+  const filteredProjects = sortProjectsByRecent(realProjects).filter(p => {
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q || 
       p.title.toLowerCase().includes(q) ||
-      (p.client || '').toLowerCase().includes(q) ||
+      ((p as any).client || p.clientId || '').toLowerCase().includes(q) ||
       (p.category || '').toLowerCase().includes(q);
     
     if (!matchesSearch) return false;

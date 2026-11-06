@@ -251,8 +251,55 @@ function cleanFirestoreData<T extends Record<string, any>>(data: T): Record<stri
   return cleaned;
 }
 
+// Helper to extract numeric creation timestamp from project
+export function getProjectTimestamp(p: Partial<Project>): number {
+  if (typeof p.createdAt === 'number' && !isNaN(p.createdAt) && p.createdAt > 0) {
+    return p.createdAt;
+  }
+  if (typeof (p as any).createdAt === 'string') {
+    const parsed = Date.parse((p as any).createdAt);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  if (p.id) {
+    const num = Number(p.id);
+    if (!isNaN(num) && num > 1000000000) {
+      return num;
+    }
+  }
+  return 0;
+}
+
+// Garante que os conteúdos mais recentes sempre fiquem no início (primeiro do lado esquerdo)
+export function sortProjectsByRecent(projects: Project[]): Project[] {
+  return [...projects].sort((a, b) => {
+    const timeA = getProjectTimestamp(a);
+    const timeB = getProjectTimestamp(b);
+    if (timeA !== timeB) {
+      return timeB - timeA; // Decrescente: o mais recente fica no índice 0 (lado esquerdo)
+    }
+    return (b.id || "").localeCompare(a.id || "");
+  });
+}
+
 // Map Firestore document to Project interface
 function mapFirestoreProject(docId: string, data: any): Project {
+  let createdAt: number | undefined;
+  if (typeof data.createdAt === 'number' && !isNaN(data.createdAt)) {
+    createdAt = data.createdAt;
+  } else if (data.createdAt?.toMillis && typeof data.createdAt.toMillis === 'function') {
+    createdAt = data.createdAt.toMillis();
+  } else if (typeof data.createdAt?.seconds === 'number') {
+    createdAt = data.createdAt.seconds * 1000;
+  } else if (typeof data.createdAt === 'string') {
+    const parsed = Date.parse(data.createdAt);
+    if (!isNaN(parsed) && parsed > 0) createdAt = parsed;
+  } else {
+    const num = Number(docId);
+    if (!isNaN(num) && num > 1000000000) {
+      createdAt = num;
+    }
+  }
+
   return {
     id: docId,
     title: data.title || "Sem título",
@@ -268,7 +315,9 @@ function mapFirestoreProject(docId: string, data: any): Project {
     views: typeof data.views === "number" ? data.views : 0,
     clientId: data.clientId || "",
     allowDownload: Boolean(data.allowDownload),
-    downloadCode: data.downloadCode || ""
+    downloadCode: data.downloadCode || "",
+    createdAt,
+    order: typeof data.order === 'number' ? data.order : undefined
   };
 }
 
@@ -340,37 +389,42 @@ export function getProjects(): Project[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
+        const cleaned = parsed
           .filter((p: Project) => !deletedIds.includes(p.id) && !isFictitiousProject(p))
           .map((p: Project) => (p.category === 'Institucional' ? { ...p, category: 'Eventos' } : p));
+        return sortProjectsByRecent(cleaned);
       }
     }
   } catch (error) {
     console.warn("Notice reading projects from storage", error);
   }
-  return initialProjects
+  const fallback = initialProjects
     .filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p))
     .map(p => (p.category === 'Institucional' ? { ...p, category: 'Eventos' } : p));
+  return sortProjectsByRecent(fallback);
 }
 
 export function saveProjects(projects: Project[]): void {
   try {
     const deletedIds = getDeletedProjectIds();
-    const filtered = projects.filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p));
+    // Garante que os mais recentes sempre fiquem no início (primeiro do lado esquerdo)
+    const sorted = sortProjectsByRecent(
+      projects.filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p))
+    );
 
     // Salva fotos em IndexedDB para garantir capacidade ilimitada sem estourar o localStorage
-    filtered.forEach(p => {
+    sorted.forEach(p => {
       if (p.images && p.images.length > 0) {
         saveGalleryToIndexedDB(p.id, p.images);
       }
     });
 
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
     } catch (quotaError) {
       console.warn("Aviso de cota do localStorage excedida. Armazenando no IndexedDB com backup de fotos no localStorage:", quotaError);
       // Salva apenas as 4 primeiras fotos completas no localStorage caso a cota estoure, sem corromper URLs
-      const safeForLocalStorage = filtered.map(p => ({
+      const safeForLocalStorage = sorted.map(p => ({
         ...p,
         images: (p.images || []).slice(0, 4)
       }));
@@ -411,7 +465,8 @@ export function getCategorySlug(category?: string): 'imobiliario' | 'publicidade
 }
 
 export function addProject(newProject: Omit<Project, 'id'>): Project {
-  const id = Date.now().toString();
+  const now = Date.now();
+  const id = now.toString();
   removeDeletedProjectId(id);
 
   const list = getProjects();
@@ -433,14 +488,15 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
     ...newProject,
     id,
     thumbnail,
-    downloadCode
+    downloadCode,
+    createdAt: newProject.createdAt || now,
   };
   
   if (project.images && project.images.length > 0) {
     saveGalleryToIndexedDB(project.id, project.images);
   }
 
-  // Update local cache immediately for zero-lag UI
+  // Update local cache immediately for zero-lag UI (adiciona no início)
   list.unshift(project);
   saveProjects(list);
 
@@ -486,7 +542,8 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
       ...list[index],
       ...updatedData,
       thumbnail,
-      downloadCode
+      downloadCode,
+      createdAt: updatedData.createdAt || list[index].createdAt || getProjectTimestamp(list[index]) || Date.now(),
     };
 
     if (updatedItem.images && updatedItem.images.length > 0) {
@@ -1362,14 +1419,17 @@ if (typeof window !== "undefined") {
           }
         });
 
-        mergedProjects.forEach(p => {
+        // Garante sempre ordenação com os mais recentes primeiro (lado esquerdo)
+        const sortedProjects = sortProjectsByRecent(mergedProjects);
+
+        sortedProjects.forEach(p => {
           if (p.images && p.images.length > 0) {
             saveGalleryToIndexedDB(p.id, p.images);
           }
         });
 
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedProjects));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedProjects));
         } catch {}
         window.dispatchEvent(new Event("projects-updated"));
       }

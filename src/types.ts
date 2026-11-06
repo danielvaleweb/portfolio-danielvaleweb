@@ -14,6 +14,8 @@ export interface Project {
   clientId?: string;
   allowDownload?: boolean;
   downloadCode?: string;
+  createdAt?: number;
+  order?: number;
 }
 
 export const projects: Project[] = [];

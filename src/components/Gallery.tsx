@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Film } from "lucide-react";
 import { Project } from "../types";
-import { getProjects } from "../utils/storage";
+import { getProjects, sortProjectsByRecent } from "../utils/storage";
 import GlareHover from "./GlareHover";
 
 function BlurImage({ project }: { project: Project }) {
@@ -45,8 +45,11 @@ function VideoSection({ title, subtitle, projects }: { title: string; subtitle: 
   const navigate = useNavigate();
   const [visibleCount, setVisibleCount] = useState(4); // Exibir de 4 em 4
 
+  // Garante ordenação decrescente: o mais recente sempre no índice 0 (lado esquerdo)
+  const sorted = sortProjectsByRecent(projects);
+
   const showMore = () => {
-    setVisibleCount(prev => Math.min(prev + 4, projects.length));
+    setVisibleCount(prev => Math.min(prev + 4, sorted.length));
   };
 
   return (
@@ -57,18 +60,18 @@ function VideoSection({ title, subtitle, projects }: { title: string; subtitle: 
       </div>
 
       <div className="w-full flex flex-col items-center">
-        {projects.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="text-center py-12 w-full max-w-4xl mx-auto border border-dashed border-neutral-200 rounded-2xl bg-white/50">
             <p className="text-neutral-400 font-light text-sm">Nenhum vídeo publicado nesta categoria ainda.</p>
           </div>
         ) : (
           <>
             <div className="w-full grid grid-cols-2 md:grid-cols-4 gap-1 md:gap-2 px-1 md:px-2">
-              {projects.slice(0, visibleCount).map((project, index) => {
+              {sorted.slice(0, visibleCount).map((project, index) => {
                 const col = index % 4;
-                const rightToLeftDelay = (3 - col) * 0.15;
+                const colDelay = col * 0.08;
                 const rowDelay = Math.floor(index / 4) * 0.1;
-                const totalDelay = rightToLeftDelay + rowDelay;
+                const totalDelay = colDelay + rowDelay;
 
                 return (
                   <motion.div
@@ -147,7 +150,7 @@ export default function Gallery() {
     };
   }, []);
 
-  const videoProjects = allProjects.filter((project) => !project.isPhotoGallery);
+  const videoProjects = sortProjectsByRecent(allProjects.filter((project) => !project.isPhotoGallery));
 
   const imobiliarioVideos = videoProjects.filter(p => p.category === 'Imobiliário');
   const publicitarioVideos = videoProjects.filter(p => p.category === 'Publicitário' || p.category === 'Publicidade');
