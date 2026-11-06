@@ -148,23 +148,23 @@ export default function Navbar() {
       {/* Right Button */}
       <div className="flex-1 flex justify-end items-center pointer-events-auto">
         <motion.a 
-          href="https://instagram.com/danielvaleweb" 
+          href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
           target="_blank" 
           rel="noreferrer" 
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`relative group inline-flex items-center justify-center h-10 px-6 rounded-xl text-white text-[13px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all duration-500 ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
+          className={`relative group inline-flex items-center justify-center h-10 px-5 rounded-xl text-white text-[13px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all duration-500 ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
         >
           {/* Base Background (Black) */}
           <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
 
-          {/* Instagram Gradient Sweep */}
+          {/* Hover Gradient Sweep (WhatsApp Emerald) */}
           <div className="absolute inset-[-1px] overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-[#128C7E] via-[#25D366] to-[#25D366] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
           </div>
 
           {/* Text */}
-          <span className="relative z-10">Instagram.</span>
+          <span className="relative z-10 font-medium">Solicitar orçamento</span>
         </motion.a>
       </div>
     </motion.nav>

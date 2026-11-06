@@ -1018,7 +1018,7 @@ export default function ProjectDetail() {
                     }
                   }}
                   disabled={isDownloading}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isDownloading ? (
                     <>
@@ -1029,6 +1029,22 @@ export default function ProjectDetail() {
                     'Iniciar Download'
                   )}
                 </button>
+
+                <div className="relative flex items-center justify-center py-1">
+                  <div className="border-t border-neutral-100 w-full" />
+                  <span className="bg-white px-2.5 text-[11px] text-neutral-400 font-medium absolute">ou</span>
+                </div>
+
+                {/* Botão de Solicitar Código via WhatsApp do Daniel Vale */}
+                <a
+                  href={`https://wa.me/5532998288650?text=${encodeURIComponent(`Olá Daniel! Gostaria de solicitar o código de acesso para download dos arquivos do projeto "${project.title}".`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.98] text-white font-bold text-sm py-3.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <MessageCircle size={18} />
+                  Solicitar código
+                </a>
               </div>
             </motion.div>
           </motion.div>
