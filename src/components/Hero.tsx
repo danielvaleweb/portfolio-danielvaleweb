@@ -1,5 +1,6 @@
 import { motion, useScroll, useTransform } from "motion/react";
 import { useEffect, useState } from "react";
+import { ArrowDown } from "lucide-react";
 
 export default function Hero() {
   const { scrollY } = useScroll();
@@ -84,6 +85,7 @@ export default function Hero() {
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+            className="flex items-center justify-between gap-4"
           >
             <motion.a 
               href="https://wa.me/5532998288650" 
@@ -134,6 +136,33 @@ export default function Hero() {
                 </div>
               </div>
             </motion.a>
+
+            {/* Setinha animada "Role para baixo" - Somente no modo mobile */}
+            <motion.button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById("trabalhos");
+                if (el) {
+                  const offset = 80;
+                  const pos = el.getBoundingClientRect().top + window.pageYOffset - offset;
+                  window.scrollTo({ top: pos, behavior: "smooth" });
+                }
+              }}
+              className="md:hidden flex flex-col items-center justify-center gap-1.5 cursor-pointer pr-1 group select-none flex-shrink-0"
+              aria-label="Role para baixo"
+              title="Role para baixo para ver os projetos"
+            >
+              <motion.div
+                animate={{ y: [0, 7, 0] }}
+                transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+                className="text-black flex items-center justify-center transition-transform group-hover:scale-110"
+              >
+                <ArrowDown size={24} strokeWidth={2.5} />
+              </motion.div>
+              <span className="text-[11px] font-bold tracking-tight text-black whitespace-nowrap">
+                Role para baixo
+              </span>
+            </motion.button>
           </motion.div>
         </div>
       </motion.div>
