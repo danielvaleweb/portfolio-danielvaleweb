@@ -176,7 +176,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, downloadU
                         href={parseDownloadUrl(downloadUrl).url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="absolute left-4 top-1/2 -translate-y-1/2 z-[110] bg-black/60 backdrop-blur-md px-4 py-8 rounded-full border border-white/20 text-white/70 text-[10px] uppercase tracking-[0.3em] font-bold [writing-mode:vertical-lr] hover:bg-white hover:text-black transition-all duration-300 shadow-xl"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 z-[110] bg-white hover:bg-neutral-100 active:scale-95 text-neutral-950 px-4 py-8 rounded-full border border-white/40 text-[10px] uppercase tracking-[0.3em] font-bold [writing-mode:vertical-lr] transition-all duration-300 shadow-xl cursor-pointer"
                         onClick={(e) => e.stopPropagation()}
                       >
                         Download

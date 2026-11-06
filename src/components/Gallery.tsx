@@ -2,8 +2,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Film } from "lucide-react";
-import { Project } from "../types";
-import { getProjects, sortProjectsByRecent } from "../utils/storage";
+import { Project, HomepageCategoryConfig } from "../types";
+import { getProjects, sortProjectsByRecent, getHomepageCategories } from "../utils/storage";
 import GlareHover from "./GlareHover";
 
 function BlurImage({ project }: { project: Project }) {
@@ -30,7 +30,7 @@ function BlurImage({ project }: { project: Project }) {
         onLoad={() => setIsLoaded(true)}
         referrerPolicy="no-referrer"
         initial={{ filter: "blur(20px)", scale: 1.1 }}
-        animate={{ 
+        animate={{
           filter: isLoaded ? "blur(0px)" : "blur(20px)",
           scale: isLoaded ? 1 : 1.1
         }}
@@ -76,21 +76,21 @@ function VideoSection({ title, subtitle, projects }: { title: string; subtitle: 
                 return (
                   <motion.div
                     key={project.id}
-                    initial={{ 
-                      opacity: 0, 
+                    initial={{
+                      opacity: 0,
                       scale: 0.9,
                       y: 20
                     }}
-                    whileInView={{ 
-                      opacity: 1, 
+                    whileInView={{
+                      opacity: 1,
                       scale: 1,
-                      y: 0 
+                      y: 0
                     }}
                     viewport={{ once: true, margin: "-50px" }}
-                    transition={{ 
-                      duration: 0.6, 
+                    transition={{
+                      duration: 0.6,
                       delay: totalDelay,
-                      ease: [0.215, 0.61, 0.355, 1] 
+                      ease: [0.215, 0.61, 0.355, 1]
                     }}
                     className="relative group cursor-pointer overflow-hidden aspect-square bg-gray-100"
                     onClick={() => navigate(`/projeto/${project.id}`)}
@@ -134,29 +134,56 @@ function VideoSection({ title, subtitle, projects }: { title: string; subtitle: 
 
 export default function Gallery() {
   const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [categoriesConfig, setCategoriesConfig] = useState<HomepageCategoryConfig[]>([]);
 
   useEffect(() => {
     // Initial load
     setAllProjects(getProjects());
+    setCategoriesConfig(getHomepageCategories());
 
     // Listen for updates
-    const handleUpdate = () => {
+    const handleProjectsUpdate = () => {
       setAllProjects(getProjects());
     };
+    const handleCategoriesUpdate = () => {
+      setCategoriesConfig(getHomepageCategories());
+    };
 
-    window.addEventListener("projects-updated", handleUpdate);
+    window.addEventListener("projects-updated", handleProjectsUpdate);
+    window.addEventListener("homepage-categories-updated", handleCategoriesUpdate);
     return () => {
-      window.removeEventListener("projects-updated", handleUpdate);
+      window.removeEventListener("projects-updated", handleProjectsUpdate);
+      window.removeEventListener("homepage-categories-updated", handleCategoriesUpdate);
     };
   }, []);
 
-  const videoProjects = sortProjectsByRecent(allProjects.filter((project) => !project.isPhotoGallery));
+  // Filtra as categorias configuradas para aparecer (visible === true)
+  const visibleCategories = categoriesConfig.filter(cat => cat.visible);
 
-  const imobiliarioVideos = videoProjects.filter(p => p.category === 'Imobiliário');
-  const publicitarioVideos = videoProjects.filter(p => p.category === 'Publicitário' || p.category === 'Publicidade');
-  const eventosVideos = videoProjects.filter(p => p.category === 'Eventos' || p.category === 'Institucional');
+  const getProjectsForCategory = (category: HomepageCategoryConfig) => {
+    const catNameLower = category.name.toLowerCase();
 
-  if (videoProjects.length === 0) {
+    // Projetos não listados (unlisted) NUNCA são exibidos na página principal/galeria pública
+    const publicProjects = allProjects.filter(p => p.visibility !== 'unlisted');
+
+    let filtered: Project[] = [];
+    if (catNameLower === 'imobiliário' || catNameLower === 'imobiliario') {
+      filtered = publicProjects.filter(p => !p.isPhotoGallery && (p.category === 'Imobiliário' || p.category === 'imobiliario'));
+    } else if (catNameLower === 'publicitário' || catNameLower === 'publicitario' || catNameLower === 'publicidade') {
+      filtered = publicProjects.filter(p => !p.isPhotoGallery && (p.category === 'Publicitário' || p.category === 'Publicidade' || p.category === 'publicitario'));
+    } else if (catNameLower === 'eventos') {
+      filtered = publicProjects.filter(p => !p.isPhotoGallery && p.category === 'Eventos');
+    } else if (catNameLower === 'institucional') {
+      filtered = publicProjects.filter(p => !p.isPhotoGallery && p.category === 'Institucional');
+    } else if (catNameLower === 'fotos' || catNameLower === 'fotografia') {
+      filtered = publicProjects.filter(p => p.isPhotoGallery || p.category === 'Fotos');
+    } else {
+      filtered = publicProjects.filter(p => p.category?.toLowerCase() === catNameLower);
+    }
+    return sortProjectsByRecent(filtered);
+  };
+
+  if (allProjects.length === 0) {
     return (
       <section id="trabalhos" className="pb-20 scroll-mt-24 flex flex-col items-center w-full px-6">
         <div className="w-full max-w-2xl py-16 px-8 rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/50 text-center flex flex-col items-center">
@@ -172,23 +199,35 @@ export default function Gallery() {
     );
   }
 
+  if (visibleCategories.length === 0) {
+    return (
+      <section id="trabalhos" className="pb-20 scroll-mt-24 flex flex-col items-center w-full px-6">
+        <div className="w-full max-w-2xl py-16 px-8 rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/50 text-center flex flex-col items-center">
+          <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 mb-4">
+            <Film size={26} />
+          </div>
+          <h3 className="text-xl font-bold text-neutral-800 mb-2">Nenhuma categoria em exibição</h3>
+          <p className="text-sm text-neutral-500 max-w-md">
+            Todas as categorias estão temporariamente ocultas na página inicial.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="trabalhos" className="pb-20 scroll-mt-24 flex flex-col items-center w-full">
-      <VideoSection 
-        title="Imobiliário" 
-        subtitle="Produções audiovisuais cinematográficas de alto impacto para o mercado imobiliário." 
-        projects={imobiliarioVideos} 
-      />
-      <VideoSection 
-        title="Publicitário" 
-        subtitle="Campanhas publicitárias e comerciais com narrativa visual envolvente." 
-        projects={publicitarioVideos} 
-      />
-      <VideoSection 
-        title="Eventos" 
-        subtitle="Cobertura cinematográfica de eventos, conferências e momentos especiais." 
-        projects={eventosVideos} 
-      />
+      {visibleCategories.map(category => {
+        const projects = getProjectsForCategory(category);
+        return (
+          <VideoSection
+            key={category.id}
+            title={category.title || category.name}
+            subtitle={category.subtitle}
+            projects={projects}
+          />
+        );
+      })}
     </section>
   );
 }

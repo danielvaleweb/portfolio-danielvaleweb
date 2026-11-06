@@ -14,7 +14,8 @@ import {
   EmailItem,
   CalendarEvent,
   KnowledgeArticle,
-  SupportTicket
+  SupportTicket,
+  HomepageCategoryConfig
 } from "../types";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { storage, db } from "../firebase";
@@ -34,6 +35,40 @@ const CONVERSATIONS_STORAGE_KEY = "daniel_vale_conversations";
 const EMAILS_STORAGE_KEY = "daniel_vale_emails";
 const CALENDAR_STORAGE_KEY = "daniel_vale_calendar";
 const KNOWLEDGE_STORAGE_KEY = "daniel_vale_knowledge";
+const VISIBILITY_STORAGE_KEY = "daniel_vale_project_visibilities";
+const FAVORITES_STORAGE_KEY = "daniel_vale_project_favorites";
+
+export function getProjectVisibilities(): Record<string, 'public' | 'unlisted'> {
+  try {
+    const data = localStorage.getItem(VISIBILITY_STORAGE_KEY);
+    if (data) return JSON.parse(data);
+  } catch {}
+  return {};
+}
+
+export function setProjectVisibility(projectId: string, visibility: 'public' | 'unlisted'): void {
+  try {
+    const current = getProjectVisibilities();
+    current[projectId] = visibility;
+    localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(current));
+  } catch {}
+}
+
+export function getProjectFavorites(): Record<string, boolean> {
+  try {
+    const data = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (data) return JSON.parse(data);
+  } catch {}
+  return {};
+}
+
+export function setProjectFavorite(projectId: string, isFavorite: boolean): void {
+  try {
+    const current = getProjectFavorites();
+    current[projectId] = isFavorite;
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(current));
+  } catch {}
+}
 
 // Known fictitious / placeholder project IDs and titles
 export const FICTITIOUS_PROJECT_IDS = new Set([
@@ -269,9 +304,17 @@ export function getProjectTimestamp(p: Partial<Project>): number {
   return 0;
 }
 
-// Garante que os conteúdos mais recentes sempre fiquem no início (primeiro do lado esquerdo)
+// Garante que os destaques (favoritos) fiquem fixados nos primeiros, e dentro de cada grupo ordene por mais recentes
 export function sortProjectsByRecent(projects: Project[]): Project[] {
   return [...projects].sort((a, b) => {
+    // 1. Destaques (isFavorite) vêm sempre primeiro (fixados no início)
+    const favA = Boolean(a.isFavorite);
+    const favB = Boolean(b.isFavorite);
+    if (favA !== favB) {
+      return favA ? -1 : 1;
+    }
+
+    // 2. Ordena pelos mais recentes primeiro
     const timeA = getProjectTimestamp(a);
     const timeB = getProjectTimestamp(b);
     if (timeA !== timeB) {
@@ -312,6 +355,8 @@ function mapFirestoreProject(docId: string, data: any): Project {
     images: Array.isArray(data.images) ? data.images : [],
     tags: Array.isArray(data.tags) ? data.tags : [],
     isFavorite: Boolean(data.isFavorite),
+    visibility: data.visibility === 'unlisted' ? 'unlisted' : (data.visibility === 'public' ? 'public' : undefined),
+    updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : undefined,
     views: typeof data.views === "number" ? data.views : 0,
     clientId: data.clientId || "",
     showClientInfo: data.showClientInfo !== undefined ? Boolean(data.showClientInfo) : Boolean(data.clientId),
@@ -385,6 +430,8 @@ export function getYouTubeThumbnail(url: string): string | null {
 // Projects
 export function getProjects(): Project[] {
   const deletedIds = getDeletedProjectIds();
+  const visibilities = getProjectVisibilities();
+  const favorites = getProjectFavorites();
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -392,7 +439,12 @@ export function getProjects(): Project[] {
       if (Array.isArray(parsed) && parsed.length > 0) {
         const cleaned = parsed
           .filter((p: Project) => !deletedIds.includes(p.id) && !isFictitiousProject(p))
-          .map((p: Project) => (p.category === 'Institucional' ? { ...p, category: 'Eventos' } : p));
+          .map((p: Project) => ({
+            ...p,
+            category: p.category === 'Institucional' ? 'Eventos' : p.category,
+            visibility: visibilities[p.id] || (p.visibility === 'unlisted' ? 'unlisted' : 'public'),
+            isFavorite: favorites[p.id] !== undefined ? favorites[p.id] : Boolean(p.isFavorite),
+          }));
         return sortProjectsByRecent(cleaned);
       }
     }
@@ -401,7 +453,12 @@ export function getProjects(): Project[] {
   }
   const fallback = initialProjects
     .filter(p => !deletedIds.includes(p.id) && !isFictitiousProject(p))
-    .map(p => (p.category === 'Institucional' ? { ...p, category: 'Eventos' } : p));
+    .map(p => ({
+      ...p,
+      category: p.category === 'Institucional' ? 'Eventos' : p.category,
+      visibility: visibilities[p.id] || (p.visibility === 'unlisted' ? 'unlisted' : 'public'),
+      isFavorite: favorites[p.id] !== undefined ? favorites[p.id] : Boolean(p.isFavorite),
+    }));
   return sortProjectsByRecent(fallback);
 }
 
@@ -485,11 +542,16 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
     downloadCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 
+  const visibility = newProject.visibility === 'unlisted' ? 'unlisted' : 'public';
+  setProjectVisibility(id, visibility);
+
   const project: Project = {
     ...newProject,
     id,
     thumbnail,
     downloadCode,
+    visibility,
+    updatedAt: now,
     showClientInfo: newProject.showClientInfo !== undefined ? newProject.showClientInfo : Boolean(newProject.clientId),
     createdAt: newProject.createdAt || now,
   };
@@ -524,6 +586,12 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
 
 export function updateProject(id: string, updatedData: Partial<Project>): void {
   removeDeletedProjectId(id);
+  if (updatedData.visibility) {
+    setProjectVisibility(id, updatedData.visibility);
+  }
+  if (updatedData.isFavorite !== undefined) {
+    setProjectFavorite(id, updatedData.isFavorite);
+  }
   const list = getProjects();
   const index = list.findIndex(p => p.id === id);
   if (index !== -1) {
@@ -545,6 +613,8 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
       ...updatedData,
       thumbnail,
       downloadCode,
+      visibility: updatedData.visibility || list[index].visibility || 'public',
+      updatedAt: Date.now(),
       createdAt: updatedData.createdAt || list[index].createdAt || getProjectTimestamp(list[index]) || Date.now(),
     };
 
@@ -828,6 +898,13 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
       await setDoc(doc(db, "mensagens", l.id), cleanFirestoreData(l)).catch(() => {});
       await setDoc(doc(db, "leads", l.id), cleanFirestoreData(l)).catch(() => {});
     }
+
+    // Salva configurações de exibição da homepage
+    const homepageCats = getHomepageCategories();
+    await setDoc(doc(db, "configuracoes", "homepage_categorias"), {
+      categories: homepageCats,
+      updatedAt: new Date().toISOString()
+    }).catch(() => {});
 
     return {
       success: true,
@@ -1402,16 +1479,37 @@ if (typeof window !== "undefined") {
           .map(docSnap => mapFirestoreProject(docSnap.id, docSnap.data()))
           .filter(p => !isFictitiousProject(p));
         
-        // Preserva imagens locais para que dados recém-salvos nunca sejam apagados por snapshot do Firestore
+        // Preserva imagens, favoritos e visibilidade locais para que dados recém-salvos nunca sejam apagados por snapshot do Firestore
+        const visibilities = getProjectVisibilities();
+        const favorites = getProjectFavorites();
         const localProjects = getProjects();
         const mergedProjects = firestoreProjects.map(fp => {
           const lp = localProjects.find(p => p.id === fp.id);
-          if (lp && lp.images && lp.images.length > 0) {
-            if (!fp.images || fp.images.length === 0 || fp.images.length < lp.images.length) {
-              return { ...fp, images: lp.images };
+          let item: Project = { ...fp };
+          if (lp) {
+            if (lp.images && lp.images.length > 0) {
+              if (!fp.images || fp.images.length === 0 || fp.images.length < lp.images.length) {
+                item.images = lp.images;
+              }
+            }
+            if (lp.visibility && !item.visibility) {
+              item.visibility = lp.visibility;
+            }
+            if (lp.isFavorite !== undefined && fp.isFavorite === undefined) {
+              item.isFavorite = lp.isFavorite;
             }
           }
-          return fp;
+          // Prioridade garantida à visibilidade explícita salva localmente
+          if (visibilities[fp.id]) {
+            item.visibility = visibilities[fp.id];
+          } else if (!item.visibility) {
+            item.visibility = 'public';
+          }
+          // Prioridade garantida aos destaques salvos localmente
+          if (favorites[fp.id] !== undefined) {
+            item.isFavorite = favorites[fp.id];
+          }
+          return item;
         });
 
         // Mantém projetos criados localmente ainda não refletidos no Firestore
@@ -1541,5 +1639,138 @@ if (typeof window !== "undefined") {
       }
     }, () => {});
   } catch (err) {}
+
+  // 9. Configurações de Categorias da Homepage listener
+  try {
+    onSnapshot(doc(db, "configuracoes", "homepage_categorias"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (Array.isArray(data?.categories) && data.categories.length > 0) {
+          localStorage.setItem(HOMEPAGE_CATEGORIES_KEY, JSON.stringify(data.categories));
+          window.dispatchEvent(new CustomEvent('homepage-categories-updated', { detail: data.categories }));
+        }
+      }
+    }, () => {});
+  } catch (err) {}
 }
+
+export const HOMEPAGE_CATEGORIES_KEY = "danivaleweb_homepage_categories";
+
+export const DEFAULT_HOMEPAGE_CATEGORIES: HomepageCategoryConfig[] = [
+  {
+    id: 'imobiliario',
+    name: 'Imobiliário',
+    title: 'Imobiliário',
+    subtitle: 'Produções audiovisuais cinematográficas de alto impacto para o mercado imobiliário.',
+    visible: true,
+  },
+  {
+    id: 'publicitario',
+    name: 'Publicitário',
+    title: 'Publicitário',
+    subtitle: 'Campanhas publicitárias e comerciais com narrativa visual envolvente.',
+    visible: true,
+  },
+  {
+    id: 'eventos',
+    name: 'Eventos',
+    title: 'Eventos',
+    subtitle: 'Cobertura cinematográfica de eventos, conferências e momentos especiais.',
+    visible: true,
+  },
+  {
+    id: 'institucional',
+    name: 'Institucional',
+    title: 'Institucional',
+    subtitle: 'Vídeos institucionais que traduzem os valores, história e propósito da sua marca.',
+    visible: false,
+  },
+  {
+    id: 'fotos',
+    name: 'Fotos',
+    title: 'Fotografia',
+    subtitle: 'Ensaios fotográficos de arquitetura, interiores e cobertura profissional.',
+    visible: false,
+  },
+];
+
+export function getHomepageCategories(): HomepageCategoryConfig[] {
+  let stored: HomepageCategoryConfig[] = [];
+  try {
+    const raw = localStorage.getItem(HOMEPAGE_CATEGORIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        stored = parsed;
+      }
+    }
+  } catch {}
+
+  // Se não tem nada salvo, inicia com as categorias padrão
+  if (stored.length === 0) {
+    stored = [...DEFAULT_HOMEPAGE_CATEGORIES];
+  } else {
+    // Garante que todas as categorias padrão existam na lista
+    DEFAULT_HOMEPAGE_CATEGORIES.forEach(defaultCat => {
+      const exists = stored.some(c => c.id === defaultCat.id || c.name.toLowerCase() === defaultCat.name.toLowerCase());
+      if (!exists) {
+        stored.push(defaultCat);
+      }
+    });
+  }
+
+  // Detecta categorias adicionais que possam existir nos projetos
+  try {
+    const projects = getProjects();
+    const existingNames = new Set(stored.map(c => c.name.toLowerCase()));
+    
+    projects.forEach(p => {
+      if (p.category && !existingNames.has(p.category.toLowerCase())) {
+        const id = p.category.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        stored.push({
+          id,
+          name: p.category,
+          title: p.category,
+          subtitle: `Projetos da categoria ${p.category}.`,
+          visible: true,
+        });
+        existingNames.add(p.category.toLowerCase());
+      }
+    });
+  } catch {}
+
+  return stored;
+}
+
+export function saveHomepageCategories(categories: HomepageCategoryConfig[]): void {
+  try {
+    localStorage.setItem(HOMEPAGE_CATEGORIES_KEY, JSON.stringify(categories));
+    window.dispatchEvent(new CustomEvent('homepage-categories-updated', { detail: categories }));
+    window.dispatchEvent(new Event('projects-updated'));
+  } catch (e) {
+    console.warn("Erro ao salvar categorias da página inicial no localStorage:", e);
+  }
+
+  try {
+    setDoc(doc(db, "configuracoes", "homepage_categorias"), {
+      categories,
+      updatedAt: new Date().toISOString()
+    }).catch(err => {
+      console.warn("Aviso ao salvar categorias da homepage no Firestore:", err?.message || err);
+    });
+  } catch {}
+}
+
+export function toggleHomepageCategoryVisibility(categoryId: string): HomepageCategoryConfig[] {
+  const categories = getHomepageCategories();
+  const updated = categories.map(c => {
+    if (c.id === categoryId) {
+      return { ...c, visible: !c.visible };
+    }
+    return c;
+  });
+  saveHomepageCategories(updated);
+  return updated;
+}
+
 

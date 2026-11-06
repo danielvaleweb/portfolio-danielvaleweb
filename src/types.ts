@@ -10,6 +10,8 @@ export interface Project {
   images?: string[];
   tags?: string[];
   isFavorite?: boolean;
+  visibility?: 'public' | 'unlisted';
+  updatedAt?: number;
   views?: number;
   clientId?: string;
   showClientInfo?: boolean;
@@ -156,4 +158,14 @@ export interface SupportTicket {
   status: 'aberto' | 'em_andamento' | 'resolvido';
   createdAt: string;
 }
+
+export interface HomepageCategoryConfig {
+  id: string;
+  name: string;
+  title: string;
+  subtitle: string;
+  visible: boolean;
+  order?: number;
+}
+
 

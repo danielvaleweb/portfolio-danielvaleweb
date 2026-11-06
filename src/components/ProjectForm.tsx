@@ -2,7 +2,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
-import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check } from 'lucide-react';
+import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff } from 'lucide-react';
 import { getClients, updateProject } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
@@ -79,6 +79,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   const [formData, setFormData] = useState<Partial<Project>>(
     project ? {
       ...project,
+      visibility: project.visibility || 'public',
       showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
       images: project.images || [],
     } : {
@@ -89,7 +90,8 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       description: '',
       tags: [],
       clientId: '',
-      showClientInfo: false,
+      showClientInfo: true,
+      visibility: 'public',
       images: [],
       allowDownload: false,
       downloadUrl: '',
@@ -361,7 +363,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    setFormData((prev) => ({ ...prev, [e.target.name]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -385,12 +387,13 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   };
 
   return (
-    <div className="bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 shadow-sm">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <button 
+            type="button"
             onClick={onCancel}
-            className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:text-gray-900 dark:text-white hover:bg-gray-200 dark:bg-[#222] transition-colors"
+            className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-[#1a1a1a] dark:hover:bg-[#222] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-600 dark:text-[#777] hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"
           >
             <ArrowLeft size={18} />
           </button>
@@ -442,22 +445,54 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             />
           </div>
 
-          <div className="space-y-3 md:col-span-2 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#262626] rounded-2xl p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center flex-shrink-0">
-                  <User size={18} />
-                </div>
-                <div>
-                  <h4 className="text-[14px] font-bold text-gray-900 dark:text-white">
-                    {lang === 'pt' ? 'Informações do Cliente' : 'Client Information'}
-                  </h4>
-                  <p className="text-[12px] text-gray-500 dark:text-[#888] leading-tight">
-                    {lang === 'pt' 
-                      ? 'Ativar card de contato ("Fale com", WhatsApp e Instagram) na página deste projeto'
-                      : 'Show contact card ("Fale com", WhatsApp, and Instagram) on this project page'}
-                  </p>
-                </div>
+          <div className="space-y-4 md:col-span-2 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#262626] rounded-2xl p-5">
+            <div className="space-y-2">
+              <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center gap-2">
+                <User size={14} />
+                {t[lang].client}
+              </label>
+              <select 
+                name="clientId"
+                value={formData.clientId || ''} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    clientId: val,
+                    showClientInfo: val ? (prev.showClientInfo !== undefined ? prev.showClientInfo : true) : prev.showClientInfo,
+                  }));
+                }}
+                className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:border-[#444] transition-colors appearance-none text-sm"
+              >
+                <option value="">{t[lang].selectClient}</option>
+                {clients.map(client => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}{client.company ? ` (${client.company})` : ''}
+                  </option>
+                ))}
+              </select>
+              {clients.length === 0 && (
+                <button 
+                  type="button" 
+                  onClick={onNavigateToClients}
+                  className="text-[12px] font-bold text-[#3B82F6] hover:text-[#2563EB] text-left mt-1 block w-full cursor-pointer"
+                >
+                  + Adicionar novo cliente
+                </button>
+              )}
+            </div>
+
+            {/* Opção para ativar / desativar informações do cliente na página */}
+            <div className="pt-3 border-t border-gray-200 dark:border-[#262626] flex items-center justify-between gap-4">
+              <div>
+                <h4 className="text-[13px] font-bold text-gray-900 dark:text-white">
+                  {lang === 'pt' ? 'Exibir informações do cliente na página' : 'Display client info on project page'}
+                </h4>
+                <p className="text-[12px] text-gray-500 dark:text-[#888] leading-tight mt-0.5">
+                  {lang === 'pt' 
+                    ? 'Ativa o card de contato com WhatsApp, Instagram e telefone do cliente na página do projeto.' 
+                    : 'Show contact card with WhatsApp, Instagram, and phone on the project page.'}
+                </p>
               </div>
 
               <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
@@ -465,43 +500,57 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
                   type="checkbox" 
                   name="showClientInfo" 
                   className="sr-only" 
-                  checked={Boolean(formData.showClientInfo)} 
+                  checked={formData.showClientInfo !== false} 
                   onChange={handleChange} 
                 />
-                <div className={`block w-14 h-8 rounded-full transition-colors ${formData.showClientInfo ? 'bg-[#25D366]' : 'bg-gray-200 dark:bg-[#333]'}`}></div>
-                <div className={`dot absolute left-1 top-1 bg-white dark:bg-[#1a1a1a] w-6 h-6 rounded-full transition-transform ${formData.showClientInfo ? 'transform translate-x-6' : ''}`}></div>
+                <div className={`block w-14 h-8 rounded-full transition-colors ${formData.showClientInfo !== false ? 'bg-[#25D366]' : 'bg-gray-200 dark:bg-[#333]'}`}></div>
+                <div className={`dot absolute left-1 top-1 bg-white dark:bg-[#1a1a1a] w-6 h-6 rounded-full transition-transform ${formData.showClientInfo !== false ? 'transform translate-x-6' : ''}`}></div>
               </label>
             </div>
+          </div>
 
-            {formData.showClientInfo && (
-              <div className="pt-4 border-t border-gray-200 dark:border-[#262626] space-y-2 animate-in fade-in duration-200">
-                <label className="text-[12px] font-bold text-gray-600 dark:text-[#aaa] uppercase tracking-wider block">
-                  {lang === 'pt' ? 'Selecionar Cliente' : 'Select Client'}
-                </label>
-                <select 
-                  name="clientId"
-                  value={formData.clientId || ''} 
-                  onChange={handleChange}
-                  className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:border-[#444] transition-colors appearance-none text-sm"
-                >
-                  <option value="">{t[lang].selectClient}</option>
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}{client.company ? ` (${client.company})` : ''}
-                    </option>
-                  ))}
-                </select>
-                {clients.length === 0 && (
-                  <button 
-                    type="button" 
-                    onClick={onNavigateToClients}
-                    className="text-[12px] font-bold text-[#3B82F6] hover:text-[#2563EB] text-left mt-1 block w-full cursor-pointer"
-                  >
-                    + Adicionar novo cliente
-                  </button>
-                )}
+          {/* Visibilidade do Projeto: Público vs Não listado */}
+          <div className="space-y-3 md:col-span-2 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#262626] rounded-2xl p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-[13px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Globe size={15} className="text-[#3B82F6]" />
+                  {lang === 'pt' ? 'Visibilidade do Projeto' : 'Project Visibility'}
+                </h4>
+                <p className="text-[12px] text-gray-500 dark:text-[#888] leading-tight mt-0.5 max-w-md">
+                  {lang === 'pt'
+                    ? 'Projetos "Não listados" não aparecem na página principal nem no portfólio público, ficando acessíveis exclusivamente por link direto.'
+                    : 'Unlisted projects do not appear on the homepage or public portfolio, remaining accessible exclusively via direct link.'}
+                </p>
               </div>
-            )}
+
+              <div className="flex items-center bg-gray-200/80 dark:bg-[#202020] p-1 rounded-xl border border-gray-300 dark:border-[#333] flex-shrink-0 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, visibility: 'public' }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    formData.visibility !== 'unlisted'
+                      ? 'bg-white dark:bg-[#111] text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-500/20'
+                      : 'text-gray-600 dark:text-[#888] hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <Globe size={13} />
+                  <span>{lang === 'pt' ? 'Público' : 'Public'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, visibility: 'unlisted' }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    formData.visibility === 'unlisted'
+                      ? 'bg-white dark:bg-[#111] text-amber-600 dark:text-amber-400 shadow-sm border border-amber-500/20'
+                      : 'text-gray-600 dark:text-[#888] hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <EyeOff size={13} />
+                  <span>{lang === 'pt' ? 'Não listado' : 'Unlisted'}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -523,7 +572,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
                 type="button" 
                 onClick={() => thumbnailInputRef.current?.click()}
                 disabled={uploading === 'thumbnail'}
-                className="bg-gray-200 dark:bg-[#222] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-5 rounded-xl font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-[#222] dark:hover:bg-[#333] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white px-5 rounded-xl font-bold transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer"
               >
                 {uploading === 'thumbnail' ? <><Loader size={16} className="animate-spin" /> {Math.round(uploadProgress)}%</> : <><Upload size={16} /> {t[lang].upload || 'Upload'}</>}
               </button>
@@ -549,7 +598,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
                 type="button" 
                 onClick={() => videoInputRef.current?.click()}
                 disabled={uploading === 'videoUrl'}
-                className="bg-gray-200 dark:bg-[#222] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-5 rounded-xl font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-[#222] dark:hover:bg-[#333] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white px-5 rounded-xl font-bold transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer"
               >
                 {uploading === 'videoUrl' ? <><Loader size={16} className="animate-spin" /> {Math.round(uploadProgress)}%</> : <><Upload size={16} /> {t[lang].upload || 'Upload'}</>}
               </button>
@@ -842,7 +891,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
               <button 
                 type="button"
                 onClick={handleAddTag}
-                className="bg-gray-200 dark:bg-[#222] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-6 rounded-xl font-bold transition-colors"
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-[#222] dark:hover:bg-[#333] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white px-6 rounded-xl font-bold transition-colors cursor-pointer"
               >
                 Add
               </button>
@@ -850,7 +899,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             {formData.tags && formData.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {formData.tags.map(tag => (
-                  <span key={tag} className="flex items-center gap-2 bg-gray-200 dark:bg-[#222] border border-[#333] text-[12px] font-semibold text-gray-900 dark:text-white px-3 py-1.5 rounded-full">
+                  <span key={tag} className="flex items-center gap-2 bg-gray-100 dark:bg-[#222] border border-gray-300 dark:border-[#333] text-[12px] font-semibold text-gray-900 dark:text-white px-3 py-1.5 rounded-full">
                     {tag}
                     <button type="button" onClick={() => removeTag(tag)} className="text-gray-500 dark:text-[#888] hover:text-gray-900 dark:text-white">
                       <X size={12} />

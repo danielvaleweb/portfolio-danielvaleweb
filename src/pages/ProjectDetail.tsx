@@ -472,10 +472,10 @@ export default function ProjectDetail() {
 
               {/* Optional Download */}
               <div className="min-w-[120px]">
-                {project.downloadUrl ? (
+                {project.allowDownload !== false && (
                   <button
                     onClick={() => {
-                      if (project.downloadCode) {
+                      if (project.downloadCode || !project.downloadUrl) {
                         setShowDownloadModal(true);
                         setDownloadCodeInput('');
                         setDownloadError('');
@@ -483,12 +483,10 @@ export default function ProjectDetail() {
                         handleDirectDownload(project.downloadUrl);
                       }
                     }}
-                    className="flex items-center gap-2 text-neutral-400 hover:text-white text-xs font-semibold tracking-wide transition-colors bg-transparent border-none p-0 cursor-pointer"
+                    className="flex items-center gap-2 bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-950 text-xs font-semibold px-4 py-2 rounded-full transition-all duration-300 shadow-sm cursor-pointer"
                   >
-                    <Download size={14} /> Baixar Fotos
+                    <Download size={13} /> Download
                   </button>
-                ) : (
-                  <div className="w-4 h-4" />
                 )}
               </div>
             </div>
@@ -743,8 +741,8 @@ export default function ProjectDetail() {
               </motion.div>
             )}
 
-            {/* Botão de Download (Personalizado em Branco, somente escrito Download) */}
-            {(project.downloadUrl || project.allowDownload) && (
+            {/* Botão de Download Minimalista na Cor Branca */}
+            {project.allowDownload !== false && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -754,7 +752,7 @@ export default function ProjectDetail() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (project.downloadCode) {
+                    if (project.downloadCode || !project.downloadUrl) {
                       setShowDownloadModal(true);
                       setDownloadCodeInput('');
                       setDownloadError('');
@@ -762,9 +760,10 @@ export default function ProjectDetail() {
                       handleDirectDownload(project.downloadUrl);
                     }
                   }}
-                  className="w-full bg-white hover:bg-neutral-50 active:scale-[0.98] text-neutral-900 text-sm font-bold py-3.5 px-6 rounded-2xl shadow-sm border border-neutral-200/80 hover:border-neutral-300 transition-all duration-300 flex items-center justify-center cursor-pointer hover:shadow-md"
+                  className="w-full bg-white hover:bg-neutral-50 active:scale-[0.98] text-neutral-900 text-xs font-semibold tracking-wider uppercase py-3.5 px-6 rounded-2xl shadow-xs border border-neutral-200/80 hover:border-neutral-400 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  Download
+                  <Download size={14} className="text-neutral-700" />
+                  <span>Download</span>
                 </button>
               </motion.div>
             )}

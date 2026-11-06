@@ -5,7 +5,18 @@ import { ShieldCheck, AlertCircle, ArrowLeft, Loader2, Lock } from 'lucide-react
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 
-export const AUTHORIZED_ADMIN_EMAIL = 'danielvaleweb@gmail.com';
+export const AUTHORIZED_ADMIN_EMAILS = [
+  'danielvaleweb@gmail.com',
+  'danielvaleweb@hotmail.com',
+];
+
+export const AUTHORIZED_ADMIN_EMAIL = AUTHORIZED_ADMIN_EMAILS[0];
+
+export const isAuthorizedAdminEmail = (email?: string | null): boolean => {
+  if (!email) return false;
+  const normalized = email.toLowerCase().trim();
+  return AUTHORIZED_ADMIN_EMAILS.some((e) => e.toLowerCase() === normalized);
+};
 
 interface AdminLoginProps {
   onAuthenticated?: (user: User) => void;
@@ -21,12 +32,12 @@ export default function AdminLogin({ onAuthenticated }: AdminLoginProps) {
       setLoading(false);
       if (user) {
         const email = user.email?.toLowerCase().trim();
-        if (email === AUTHORIZED_ADMIN_EMAIL.toLowerCase()) {
+        if (isAuthorizedAdminEmail(email)) {
           setError(null);
           onAuthenticated?.(user);
         } else {
           signOut(auth);
-          setError(`Acesso negado: o e-mail "${email}" não tem permissão de acesso. Apenas ${AUTHORIZED_ADMIN_EMAIL} é autorizado.`);
+          setError(`Acesso negado: a conta conectada (${email || 'não identificada'}) não possui permissão para acessar o painel.`);
         }
       }
     });
@@ -41,12 +52,12 @@ export default function AdminLogin({ onAuthenticated }: AdminLoginProps) {
       const result = await signInWithPopup(auth, googleProvider);
       const email = result.user?.email?.toLowerCase().trim();
       
-      if (email === AUTHORIZED_ADMIN_EMAIL.toLowerCase()) {
+      if (isAuthorizedAdminEmail(email)) {
         setError(null);
         onAuthenticated?.(result.user);
       } else {
         await signOut(auth);
-        setError(`Acesso negado: a conta Google (${email || 'desconhecida'}) não tem permissão para acessar o painel. Apenas ${AUTHORIZED_ADMIN_EMAIL} é autorizado.`);
+        setError(`Acesso negado: a conta Google (${email || 'não identificada'}) não possui permissão para acessar o painel.`);
       }
     } catch (err: any) {
       console.warn("Erro na autenticação do Google:", err);
@@ -159,7 +170,7 @@ export default function AdminLogin({ onAuthenticated }: AdminLoginProps) {
 
           <div className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-neutral-500 font-mono">
             <ShieldCheck size={13} className="text-emerald-500" />
-            <span>Permitido apenas: <strong className="text-neutral-400 font-medium">{AUTHORIZED_ADMIN_EMAIL}</strong></span>
+            <span>Acesso restrito ao administrador</span>
           </div>
         </div>
 
