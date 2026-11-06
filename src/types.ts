@@ -22,7 +22,9 @@ export const projects: Project[] = [];
 export interface Client {
   id: string;
   name: string;
-  logoUrl: string; // Supported: normal URLs or inline SVG Data URIs
+  email?: string;
+  company?: string;
+  logoUrl: string; // Supported: normal URLs or inline SVG Data URIs / Base64
 }
 
 export const initialClients: Client[] = [];

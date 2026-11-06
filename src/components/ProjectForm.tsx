@@ -238,7 +238,9 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             >
               <option value="">{t[lang].selectClient}</option>
               {clients.map(client => (
-                <option key={client.id} value={client.id}>{client.name}</option>
+                <option key={client.id} value={client.id}>
+                  {client.name}{client.company ? ` (${client.company})` : ''}
+                </option>
               ))}
             </select>
             {clients.length === 0 && (

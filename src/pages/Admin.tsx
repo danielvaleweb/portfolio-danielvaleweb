@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle } from 'lucide-react';
+import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon } from 'lucide-react';
 import { Project, Client } from '../types';
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage } from "../firebase";
 import { getProjects, addProject, updateProject, deleteProject, getClients, addClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
 import { Notification } from '../types';
 import ProjectForm from '../components/ProjectForm';
@@ -343,9 +345,14 @@ export default function Admin() {
   const [realClients, setRealClients] = useState<Client[]>([]);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [newClientName, setNewClientName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientCompany, setNewClientCompany] = useState('');
   const [newClientLogo, setNewClientLogo] = useState('');
+  const [clientPhotoFile, setClientPhotoFile] = useState<File | null>(null);
+  const [clientPhotoPreview, setClientPhotoPreview] = useState<string | null>(null);
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [clientSaveFeedback, setClientSaveFeedback] = useState<string | null>(null);
+  const clientFileInputRef = useRef<HTMLInputElement>(null);
   
   const [actionModal, setActionModal] = useState<'review' | 'download' | null>(null);
   const [actionProject, setActionProject] = useState<Project | null>(null);
@@ -557,20 +564,93 @@ export default function Admin() {
     }
   };
 
+  const handleClientPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert(lang === 'pt' ? 'Por favor selecione um arquivo de imagem válido (JPG, PNG, WebP, SVG).' : 'Please select a valid image file.');
+      return;
+    }
+
+    setClientPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setClientPhotoPreview(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveClientPhoto = () => {
+    setClientPhotoFile(null);
+    setClientPhotoPreview(null);
+    setNewClientLogo('');
+    if (clientFileInputRef.current) {
+      clientFileInputRef.current.value = '';
+    }
+  };
+
   const handleSaveClient = async () => {
     const trimmedName = newClientName.trim();
     if (!trimmedName) return;
 
     setIsSavingClient(true);
     setClientSaveFeedback(null);
+
+    let finalLogoUrl = newClientLogo.trim();
+
+    // Se houver foto selecionada do PC, tenta upload no Firebase Storage ou fallback para Data URL
+    if (clientPhotoFile) {
+      try {
+        const cleanFileName = clientPhotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storageRef = ref(storage, `clients/${Date.now()}_${cleanFileName}`);
+        const uploadTask = uploadBytesResumable(storageRef, clientPhotoFile);
+
+        await new Promise<void>((resolve) => {
+          uploadTask.on(
+            'state_changed',
+            () => {},
+            (error) => {
+              console.warn("Storage upload failed, falling back to local image data:", error);
+              if (clientPhotoPreview) {
+                finalLogoUrl = clientPhotoPreview;
+              }
+              resolve();
+            },
+            async () => {
+              try {
+                finalLogoUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              } catch (e) {
+                if (clientPhotoPreview) finalLogoUrl = clientPhotoPreview;
+              }
+              resolve();
+            }
+          );
+        });
+      } catch (uploadErr) {
+        console.warn("Erro no upload da foto do cliente:", uploadErr);
+        if (clientPhotoPreview) {
+          finalLogoUrl = clientPhotoPreview;
+        }
+      }
+    } else if (clientPhotoPreview) {
+      finalLogoUrl = clientPhotoPreview;
+    }
+
     try {
       await addClient({
         name: trimmedName,
-        logoUrl: newClientLogo.trim() || ''
+        email: newClientEmail.trim() || undefined,
+        company: newClientCompany.trim() || undefined,
+        logoUrl: finalLogoUrl || ''
       });
       setRealClients(getClients());
       setNewClientName('');
+      setNewClientEmail('');
+      setNewClientCompany('');
       setNewClientLogo('');
+      setClientPhotoFile(null);
+      setClientPhotoPreview(null);
       setIsCreatingClient(false);
     } catch (err: any) {
       console.error("Erro ao salvar cliente:", err);
@@ -1369,7 +1449,7 @@ service cloud.firestore {
                 ) : (
                   <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 content-start pb-6">
                     {realClients.map(client => (
-                      <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm hover:border-gray-300 dark:hover:border-[#333] transition-all">
+                      <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm hover:border-gray-300 dark:hover:border-[#333] transition-all group">
                         <button
                           onClick={() => {
                             setClientToDelete(client);
@@ -1381,14 +1461,26 @@ service cloud.firestore {
                         >
                           <Trash2 size={16} />
                         </button>
-                        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center mb-4 border border-gray-200 dark:border-[#333]">
+                        <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center mb-3 border border-gray-200 dark:border-[#333] shadow-inner">
                            {client.logoUrl?.trim() ? (
                              <img src={client.logoUrl.trim()} alt={client.name} className="w-full h-full object-cover" />
                            ) : (
-                             <User size={24} className="text-gray-400" />
+                             <User size={32} className="text-gray-400" />
                            )}
                         </div>
                         <h4 className="font-bold text-[15px] text-gray-900 dark:text-white text-center truncate w-full">{client.name}</h4>
+                        {client.company && (
+                          <div className="mt-1 px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-[#FF6321] text-[11px] font-bold max-w-full truncate flex items-center gap-1">
+                            <Building2 size={11} className="flex-shrink-0" />
+                            <span className="truncate">{client.company}</span>
+                          </div>
+                        )}
+                        {client.email && (
+                          <p className="text-[12px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-2 flex items-center justify-center gap-1.5">
+                            <Mail size={12} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{client.email}</span>
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1599,8 +1691,28 @@ service cloud.firestore {
 {/* Create Client Modal */}
       {isCreatingClient && (
         <div className="absolute inset-0 bg-black/60 z-[300] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl w-full max-w-md p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-black dark:text-white mb-4">Adicionar Novo Cliente</h3>
+          <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-black dark:text-white">Adicionar Novo Cliente</h3>
+              <button
+                onClick={() => {
+                  if (!isSavingClient) {
+                    setIsCreatingClient(false);
+                    setClientSaveFeedback(null);
+                    setNewClientName('');
+                    setNewClientEmail('');
+                    setNewClientCompany('');
+                    setNewClientLogo('');
+                    setClientPhotoFile(null);
+                    setClientPhotoPreview(null);
+                  }
+                }}
+                disabled={isSavingClient}
+                className="p-1 rounded-full text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
             {clientSaveFeedback && (
               <div className="mb-4 p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-2xl text-xs text-red-600 dark:text-red-400">
@@ -1645,8 +1757,9 @@ service cloud.firestore {
             )}
 
             <div className="space-y-4 mb-6">
+              {/* 1. Nome do Cliente */}
               <div>
-                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block">
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
                   Nome do Cliente <span className="text-red-500">*</span>
                 </label>
                 <input 
@@ -1654,33 +1767,139 @@ service cloud.firestore {
                   value={newClientName}
                   onChange={(e) => setNewClientName(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
-                  placeholder="Ex: Construtora Alfa"
+                  placeholder="Ex: Carlos Eduardo"
                   autoFocus
                   disabled={isSavingClient}
                 />
               </div>
 
+              {/* 2. Email */}
               <div>
-                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block">
-                  Logo ou Imagem (URL Opcional)
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
+                  Email
                 </label>
                 <input 
-                  type="text" 
-                  value={newClientLogo}
-                  onChange={(e) => setNewClientLogo(e.target.value)}
+                  type="email" 
+                  value={newClientEmail}
+                  onChange={(e) => setNewClientEmail(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
-                  placeholder="https://exemplo.com/logo.png (opcional)"
+                  placeholder="Ex: carlos@empresa.com"
                   disabled={isSavingClient}
                 />
               </div>
+
+              {/* 3. Empresa */}
+              <div>
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
+                  Empresa
+                </label>
+                <input 
+                  type="text" 
+                  value={newClientCompany}
+                  onChange={(e) => setNewClientCompany(e.target.value)}
+                  className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
+                  placeholder="Ex: Construtora Alfa / Prime Empreendimentos"
+                  disabled={isSavingClient}
+                />
+              </div>
+
+              {/* 4. Enviar Foto do PC */}
+              <div>
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block flex items-center justify-between">
+                  <span>Foto do Cliente / Logo</span>
+                  <span className="text-[11px] text-gray-400 font-normal lowercase">Do computador ou URL</span>
+                </label>
+                
+                <input 
+                  type="file" 
+                  ref={clientFileInputRef} 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={handleClientPhotoSelect} 
+                  disabled={isSavingClient}
+                />
+
+                {clientPhotoPreview ? (
+                  <div className="flex items-center gap-4 p-3.5 bg-gray-50 dark:bg-[#181818] border border-gray-200 dark:border-[#262626] rounded-2xl">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-200 dark:bg-[#202020] flex-shrink-0 border border-gray-300 dark:border-[#333] shadow-sm">
+                      <img src={clientPhotoPreview} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+                        {clientPhotoFile ? clientPhotoFile.name : 'Foto selecionada'}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {clientPhotoFile ? `${(clientPhotoFile.size / 1024).toFixed(1)} KB` : 'Foto pronta para salvar'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => clientFileInputRef.current?.click()}
+                          disabled={isSavingClient}
+                          className="text-[11px] font-bold text-[#FF6321] hover:underline cursor-pointer"
+                        >
+                          Trocar foto do PC
+                        </button>
+                        <span className="text-gray-300 dark:text-[#444]">•</span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveClientPhoto}
+                          disabled={isSavingClient}
+                          className="text-[11px] font-bold text-red-500 hover:underline cursor-pointer"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => !isSavingClient && clientFileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 dark:border-[#2a2a2a] hover:border-[#FF6321] dark:hover:border-[#FF6321] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors bg-gray-50/50 dark:bg-[#161616]/50 group"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-gray-100 dark:bg-[#202020] flex items-center justify-center text-gray-400 group-hover:text-[#FF6321] transition-colors mb-2 shadow-sm">
+                      <Upload size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-gray-700 dark:text-gray-200 text-center">
+                      Clique para enviar foto do computador
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-1 text-center">
+                      PNG, JPG, WebP ou SVG
+                    </p>
+                  </div>
+                )}
+
+                {/* Ou URL opcional */}
+                <div className="mt-3">
+                  <input 
+                    type="url" 
+                    value={newClientLogo}
+                    onChange={(e) => {
+                      setNewClientLogo(e.target.value);
+                      if (e.target.value.trim() && !clientPhotoFile) {
+                        setClientPhotoPreview(e.target.value.trim());
+                      }
+                    }}
+                    className="w-full bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#222] text-gray-700 dark:text-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-gray-400 text-xs"
+                    placeholder="Ou cole a URL da imagem (opcional)"
+                    disabled={isSavingClient}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-[#1e1e1e]">
               <button 
                 onClick={() => {
                   if (!isSavingClient) {
                     setIsCreatingClient(false);
                     setClientSaveFeedback(null);
+                    setNewClientName('');
+                    setNewClientEmail('');
+                    setNewClientCompany('');
+                    setNewClientLogo('');
+                    setClientPhotoFile(null);
+                    setClientPhotoPreview(null);
                   }
                 }}
                 disabled={isSavingClient}
@@ -1691,15 +1910,15 @@ service cloud.firestore {
               <button 
                 onClick={handleSaveClient}
                 disabled={isSavingClient || !newClientName.trim()}
-                className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2 shadow-sm"
               >
                 {isSavingClient ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Salvando no Banco...
+                    Salvando Cliente...
                   </>
                 ) : (
-                  'Salvar no Banco de Dados'
+                  'Salvar Cliente'
                 )}
               </button>
             </div>
