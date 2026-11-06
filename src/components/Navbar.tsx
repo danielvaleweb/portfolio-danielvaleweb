@@ -20,7 +20,7 @@ export default function Navbar() {
       setIsScrolled(currentScroll > 50);
       
       // Check if we are over a dark section
-      const darkSectionIds = ['processo'];
+      const darkSectionIds: string[] = [];
       let isOverDark = false;
       
       for (const id of darkSectionIds) {

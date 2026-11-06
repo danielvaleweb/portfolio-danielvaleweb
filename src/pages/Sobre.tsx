@@ -1,4 +1,3 @@
-import Process from "../components/Process";
 import { motion } from "motion/react";
 
 export default function Sobre() {
@@ -31,7 +30,6 @@ export default function Sobre() {
           </div>
         </div>
       </div>
-      <Process />
     </motion.div>
   );
 }

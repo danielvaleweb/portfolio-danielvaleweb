@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Hero from "../components/Hero";
 import Gallery from "../components/Gallery";
-import Process from "../components/Process";
 import BlurText from "../components/BlurText";
 import LogoLoop from "../components/LogoLoop";
 import { Client, Evaluation } from "../types";
@@ -232,7 +231,6 @@ export default function Home() {
 
         </div>
       </div>
-      <Process />
     </motion.div>
   );
 }
