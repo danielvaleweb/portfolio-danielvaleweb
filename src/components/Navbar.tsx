@@ -20,11 +20,11 @@ export default function Navbar() {
     const handleScroll = () => {
       const currentScroll = window.scrollY;
       setIsScrolled(currentScroll > 50);
-      
+
       // Check if we are over a dark section
       const darkSectionIds: string[] = [];
       let isOverDark = false;
-      
+
       for (const id of darkSectionIds) {
         const section = document.getElementById(id);
         if (section) {
@@ -45,7 +45,7 @@ export default function Navbar() {
           isOverDark = true;
         }
       }
-      
+
       setIsDarkSection(isOverDark);
     };
     window.addEventListener("scroll", handleScroll);
@@ -94,18 +94,17 @@ export default function Navbar() {
   };
 
   return (
-    <motion.nav 
+    <motion.nav
       style={{ opacity: 1 }}
-      className={`fixed top-0 left-0 w-full z-50 px-6 md:px-12 h-24 flex items-center transition-all duration-700 border-b pointer-events-none ${
-        isScrolled 
-          ? `bg-transparent backdrop-blur-md ${isDarkSection ? 'border-white/10' : 'border-black/5'} shadow-sm` 
+      className={`fixed top-0 left-0 w-full z-50 px-6 md:px-12 h-24 flex items-center transition-all duration-700 border-b pointer-events-none ${isScrolled
+          ? `bg-transparent backdrop-blur-md ${isDarkSection ? 'border-white/10' : 'border-black/5'} shadow-sm`
           : "bg-transparent border-transparent"
-      }`}
+        }`}
     >
       {/* Left Logo */}
       <div className="flex-1 flex justify-start items-center pointer-events-auto">
-        <a 
-          href="/" 
+        <a
+          href="/"
           onClick={(e) => {
             e.preventDefault();
             if (location.pathname !== "/") {
@@ -146,16 +145,17 @@ export default function Navbar() {
           </a>
         ))}
       </div>
-      
+
       {/* Right Button & Mobile Menu Toggle */}
       <div className="flex-1 flex justify-end items-center gap-2 sm:gap-3 pointer-events-auto">
-        <motion.a 
+        {/* Botão Desktop: sempre visível no topo no desktop */}
+        <motion.a
           href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
-          target="_blank" 
-          rel="noreferrer" 
+          target="_blank"
+          rel="noreferrer"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`relative group inline-flex items-center justify-center h-10 px-3.5 sm:px-5 rounded-xl text-white text-[12px] sm:text-[13px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all duration-500 whitespace-nowrap ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
+          className={`relative group hidden md:inline-flex items-center justify-center h-10 px-5 rounded-xl text-white text-[13px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all duration-500 whitespace-nowrap ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
         >
           {/* Base Background (Black) */}
           <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
@@ -168,6 +168,30 @@ export default function Navbar() {
           {/* Text */}
           <span className="relative z-10 font-medium">Solicitar orçamento</span>
         </motion.a>
+
+        {/* Botão Mobile: no topo fica no Hero (substituindo o REC) e vai para a navbar SOMENTE quando rolar */}
+        <AnimatePresence>
+          {(isScrolled || location.pathname !== "/") && (
+            <motion.a
+              key="solicitar-orcamento-mobile"
+              initial={{ opacity: 0, scale: 0.85, x: 8 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.85, x: 8 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
+              target="_blank"
+              rel="noreferrer"
+              whileTap={{ scale: 0.95 }}
+              className={`relative group inline-flex md:hidden items-center justify-center h-10 px-3.5 rounded-xl text-white text-[12px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] whitespace-nowrap ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
+            >
+              {/* Base Background (Black) */}
+              <div className="absolute inset-0 bg-black" />
+
+              {/* Text */}
+              <span className="relative z-10 font-medium">Solicitar orçamento</span>
+            </motion.a>
+          )}
+        </AnimatePresence>
 
         {/* Botão de Três Linhas (Somente as Linhas, sem retângulo de fundo) */}
         <button
@@ -276,9 +300,9 @@ export default function Navbar() {
 
               {/* Bottom Contacts */}
               <div className="pt-6 border-t border-gray-100 space-y-3.5 text-xs text-gray-600">
-                <a 
-                  href="https://instagram.com/danielvaleweb" 
-                  target="_blank" 
+                <a
+                  href="https://instagram.com/danielvaleweb"
+                  target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-3 text-gray-700 hover:text-black font-medium transition-colors"
                 >
@@ -288,8 +312,8 @@ export default function Navbar() {
                   <span>@danielvaleweb</span>
                 </a>
 
-                <a 
-                  href="tel:+5532998288650" 
+                <a
+                  href="tel:+5532998288650"
                   className="flex items-center gap-3 text-gray-700 hover:text-black font-medium transition-colors"
                 >
                   <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
@@ -298,8 +322,8 @@ export default function Navbar() {
                   <span>+55 32 99828-8650</span>
                 </a>
 
-                <a 
-                  href="mailto:contato@danielvale.com.br" 
+                <a
+                  href="mailto:contato@danielvale.com.br"
                   className="flex items-center gap-3 text-gray-700 hover:text-black font-medium transition-colors"
                 >
                   <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">

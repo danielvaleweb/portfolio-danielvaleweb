@@ -17,8 +17,8 @@ export default function Hero() {
   }, []);
 
   return (
-    <section 
-      id="home" 
+    <section
+      id="home"
       className="relative min-h-screen w-full bg-white flex flex-col items-center justify-end pt-24 overflow-hidden scroll-mt-24"
     >
       {/* Background Image Container */}
@@ -31,9 +31,9 @@ export default function Hero() {
           }}
           className="w-full h-full"
         >
-          <img 
-            src="https://res.cloudinary.com/dgarqyegu/image/upload/v1774924727/Gemini_Generated_Image_t2f2tct2f2tct2f2_ww3ttc.png" 
-            alt="Background" 
+          <img
+            src="https://res.cloudinary.com/dgarqyegu/image/upload/v1774924727/Gemini_Generated_Image_t2f2tct2f2tct2f2_ww3ttc.png"
+            alt="Background"
             className="w-full h-full relative object-cover object-center md:object-[75%_15%] transition-all duration-700 max-w-none"
             referrerPolicy="no-referrer"
           />
@@ -42,12 +42,12 @@ export default function Hero() {
         <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-white via-white/70 to-transparent md:h-1/2 md:from-white md:via-white/40 md:to-transparent" />
       </div>
 
-      <motion.div 
+      <motion.div
         className="relative z-10 max-w-7xl mx-auto px-6 w-full grid grid-cols-1 md:grid-cols-2 gap-24 items-end pb-24 md:pb-32"
       >
         {/* Left Side (Aparece somente no desktop; oculto no modo mobile conforme solicitado) */}
         <div className="space-y-6 hidden md:block">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
@@ -60,7 +60,7 @@ export default function Hero() {
             <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500 font-medium">Disponível para novos projetos</span>
           </motion.div>
 
-          <motion.h1 
+          <motion.h1
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
@@ -72,7 +72,7 @@ export default function Hero() {
 
         {/* Right Side */}
         <div className="space-y-6 md:pl-48 md:pb-16 md:justify-self-end">
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
@@ -87,13 +87,14 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
             className="flex items-center justify-between gap-4"
           >
-            <motion.a 
-              href="https://wa.me/5532998288650" 
-              target="_blank" 
-              rel="noreferrer" 
+            {/* Botão Desktop: REC */}
+            <motion.a
+              href="https://wa.me/5532998288650"
+              target="_blank"
+              rel="noreferrer"
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
-              className="relative group inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-white text-[14px] font-semibold shadow-[0_20px_40px_rgba(0,0,0,0.3)] overflow-hidden border-0 outline-none ring-0"
+              className="relative group hidden md:inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-white text-[14px] font-semibold shadow-[0_20px_40px_rgba(0,0,0,0.3)] overflow-hidden border-0 outline-none ring-0"
             >
               {/* Base Background - slightly oversized to prevent sub-pixel gaps */}
               <div className="absolute -inset-[1px] bg-black transition-colors duration-500 group-hover:bg-red-600" />
@@ -123,7 +124,7 @@ export default function Hero() {
                     <div className="w-2 h-2 rounded-full bg-white" />
                   </div>
                 </div>
-                
+
                 <div className="relative h-6 flex items-center min-w-[110px] -mt-[1px]">
                   {/* REC Text - Normal State */}
                   <span className="absolute left-0 flex items-center text-[14px] font-black text-red-500 tracking-[0.2em] animate-pulse transition-all duration-500 ease-in-out group-hover:opacity-0 group-hover:-translate-y-4">
@@ -135,6 +136,27 @@ export default function Hero() {
                   </span>
                 </div>
               </div>
+            </motion.a>
+
+            {/* Botão Mobile: Solicitar orçamento (substitui o REC no modo mobile) */}
+            <motion.a
+              href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
+              target="_blank"
+              rel="noreferrer"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              className="relative group inline-flex md:hidden items-center justify-center h-12 px-6 rounded-2xl text-white text-[14px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.25)] overflow-hidden border-0 outline-none ring-0"
+            >
+              {/* Base Background - Black */}
+              <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
+
+              {/* Liquid Sweep - WhatsApp Emerald */}
+              <div className="absolute inset-[-1px] overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-[#128C7E] via-[#25D366] to-[#25D366] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+              </div>
+
+              {/* Text */}
+              <span className="relative z-10 font-bold tracking-tight">Solicitar orçamento</span>
             </motion.a>
 
             {/* Setinha animada "Role para baixo" - Somente no modo mobile */}
