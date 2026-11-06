@@ -35,6 +35,7 @@ export default function Footer() {
           <Link to="/contato" className="hover:text-white transition-colors duration-300">Contato</Link>
           <a href="https://instagram.com/danielvaleweb" target="_blank" rel="noreferrer" className="hover:text-white transition-colors duration-300">Instagram</a>
           <a href="https://youtube.com" target="_blank" rel="noreferrer" className="hover:text-white transition-colors duration-300">YouTube</a>
+          <Link to="/admin" className="hover:text-white transition-colors duration-300">Painel</Link>
         </div>
 
         {/* Copyright & Developer */}

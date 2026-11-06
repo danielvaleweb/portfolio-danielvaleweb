@@ -3,7 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram } from 'lucide-react';
 import { Project, Client } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { storage } from "../firebase";
+import { storage, auth } from "../firebase";
+import { signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import AdminLogin, { AUTHORIZED_ADMIN_EMAIL } from '../components/AdminLogin';
 import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
 import { Notification } from '../types';
 import ProjectForm from '../components/ProjectForm';
@@ -314,6 +316,21 @@ const Card = ({
 }
 
 export default function Admin() {
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(auth.currentUser);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && user.email?.toLowerCase().trim() === AUTHORIZED_ADMIN_EMAIL.toLowerCase()) {
+        setCurrentUser(user);
+      } else {
+        setCurrentUser(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [projectsTreeOpen, setProjectsTreeOpen] = useState(true);
@@ -832,6 +849,19 @@ export default function Admin() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-full bg-[#070707] flex flex-col items-center justify-center p-6 text-white select-none">
+        <div className="w-10 h-10 border-2 border-white/20 border-t-[#FF6321] rounded-full animate-spin mb-4" />
+        <p className="text-neutral-400 text-sm font-light">Verificando autenticação...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <AdminLogin onAuthenticated={(user) => setCurrentUser(user)} />;
+  }
+
   return (
     <div className={`flex h-screen bg-gray-100 dark:bg-[#050505] text-gray-900 dark:text-[#E5E5E5] font-sans overflow-hidden w-full relative z-[100] fixed inset-0`}>
       
@@ -1250,18 +1280,33 @@ export default function Admin() {
                 <div 
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className="w-8 h-8 rounded-full bg-gray-200 dark:bg-[#222] border border-gray-300 dark:border-[#333] overflow-hidden ml-1 flex-shrink-0 cursor-pointer"
+                  title={currentUser?.email || "Admin"}
                 >
-                   <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150&h=150" alt="User Avatar" className="w-full h-full object-cover" />
+                   <img 
+                     src={currentUser?.photoURL || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150&h=150"} 
+                     alt="User Avatar" 
+                     className="w-full h-full object-cover" 
+                     referrerPolicy="no-referrer"
+                   />
                 </div>
 
                 {showProfileMenu && (
-                  <div className="absolute right-0 top-10 w-32 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg py-1 z-[60]">
+                  <div className="absolute right-0 top-10 w-44 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg py-1.5 z-[60]">
+                    <div className="px-3.5 py-1.5 border-b border-gray-100 dark:border-[#2a2a2a] mb-1">
+                      <p className="text-[11px] font-bold text-gray-900 dark:text-white truncate">
+                        {currentUser?.displayName || 'Daniel Vale'}
+                      </p>
+                      <p className="text-[10px] text-gray-400 truncate">
+                        {currentUser?.email}
+                      </p>
+                    </div>
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
                         setShowProfileMenu(false);
+                        await signOut(auth);
                         window.location.href = '/';
                       }}
-                      className="w-full text-left px-4 py-2 text-[13px] font-bold text-red-500 hover:bg-gray-100 dark:hover:bg-[#222] transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2 text-[12px] font-bold text-red-500 hover:bg-gray-100 dark:hover:bg-[#222] transition-colors flex items-center gap-2 cursor-pointer"
                     >
                       <LogOut size={14} /> {t.logout}
                     </button>
