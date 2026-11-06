@@ -33,37 +33,37 @@ export default function Hero() {
           <img 
             src="https://res.cloudinary.com/dgarqyegu/image/upload/v1774924727/Gemini_Generated_Image_t2f2tct2f2tct2f2_ww3ttc.png" 
             alt="Background" 
-            className="w-full h-full relative object-cover object-center blur-sm brightness-50 md:object-[75%_15%] md:blur-none md:brightness-100 transition-all duration-700 max-w-none"
+            className="w-full h-full relative object-cover object-center md:object-[75%_15%] transition-all duration-700 max-w-none"
             referrerPolicy="no-referrer"
           />
         </motion.div>
         {/* Overlays for readability */}
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-white via-white/40 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-white via-white/70 to-transparent md:h-1/2 md:from-white md:via-white/40 md:to-transparent" />
       </div>
 
       <motion.div 
         className="relative z-10 max-w-7xl mx-auto px-6 w-full grid grid-cols-1 md:grid-cols-2 gap-24 items-end pb-24 md:pb-32"
       >
-        {/* Left Side */}
-        <div className="space-y-6">
+        {/* Left Side (Aparece somente no desktop; oculto no modo mobile conforme solicitado) */}
+        <div className="space-y-6 hidden md:block">
           <motion.div 
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 md:bg-gray-50 md:border-gray-100"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-50 border border-gray-100"
           >
             <div className="relative flex items-center justify-center">
               <span className="w-2 h-2 rounded-full bg-green-500" />
               <span className="absolute inset-0 w-2 h-2 rounded-full bg-green-500 animate-ping opacity-75" />
             </div>
-            <span className="text-[10px] uppercase tracking-[0.1em] text-white/80 md:text-gray-500 font-medium">Disponível para novos projetos</span>
+            <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500 font-medium">Disponível para novos projetos</span>
           </motion.div>
 
           <motion.h1 
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
-            className="text-[39px] font-helvetica font-normal tracking-[-2px] leading-[1.1] text-white md:text-black max-w-xl"
+            className="text-[39px] font-helvetica font-normal tracking-[-2px] leading-[1.1] text-black max-w-xl"
           >
             Transformo momentos em experiências visuais.
           </motion.h1>
@@ -75,7 +75,7 @@ export default function Hero() {
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-            className="text-white/90 md:text-gray-700 text-[15px] leading-relaxed font-semibold max-w-[450px]"
+            className="text-gray-900 md:text-gray-700 text-[15px] leading-relaxed font-semibold max-w-[450px]"
           >
             Sou videomaker especializado no mercado imobiliário, focado em criar vídeos que elevam a percepção de valor e destacam cada detalhe do imóvel.
           </motion.p>

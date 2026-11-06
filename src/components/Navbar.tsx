@@ -56,8 +56,8 @@ export default function Navbar() {
   // Mobile Navbar Opacity based on scroll
   const mNavOpacity = useTransform(scrollY, [50, 150], [0, 1]);
 
-  const textColor = isMobile || isDarkSection ? "text-white" : "text-black";
-  const textColorMuted = isMobile || isDarkSection ? "text-white/70 hover:text-white" : "text-black/70 hover:text-black";
+  const textColor = isDarkSection ? "text-white" : "text-black";
+  const textColorMuted = isDarkSection ? "text-white/70 hover:text-white" : "text-black/70 hover:text-black";
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();

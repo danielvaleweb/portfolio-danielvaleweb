@@ -250,7 +250,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    const validFiles = (Array.from(files) as File[]).filter(f => f.type.startsWith('image/'));
     if (validFiles.length === 0) return;
 
     setUploadingGallery(true);
