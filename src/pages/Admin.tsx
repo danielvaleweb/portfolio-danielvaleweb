@@ -2,11 +2,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle } from 'lucide-react';
 import { Project, Client } from '../types';
-import { getProjects, addProject, updateProject, deleteProject, getClients, addClient, getNotifications, markNotificationsAsRead } from '../utils/storage';
+import { getProjects, addProject, updateProject, deleteProject, getClients, addClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore } from '../utils/storage';
 import { Notification } from '../types';
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { NotesTab } from '../components/admin/NotesTab';
+import { FilesTab } from '../components/admin/FilesTab';
+import { ConversasTab } from '../components/admin/ConversasTab';
+import { EmailTab } from '../components/admin/EmailTab';
+import { CalendarTab } from '../components/admin/CalendarTab';
+import { KnowledgeBaseTab } from '../components/admin/KnowledgeBaseTab';
+import { MessagesTab } from '../components/admin/MessagesTab';
+import { SettingsTab } from '../components/admin/SettingsTab';
+import { LearnTab } from '../components/admin/LearnTab';
+import { HelpCenterTab } from '../components/admin/HelpCenterTab';
+import { SupportTab } from '../components/admin/SupportTab';
 
 function useOnClickOutside(ref: any, handler: () => void) {
   useEffect(() => {
@@ -164,7 +175,7 @@ const Card = ({
 
   const logo = (
     <img 
-      src={project.thumbnail} 
+      src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"} 
       alt={project.title} 
       className="w-full h-full object-cover" 
       referrerPolicy="no-referrer" 
@@ -221,7 +232,7 @@ const Card = ({
       {/* Thumbnail area */}
       <div className="w-full aspect-[4/3] mb-4 rounded-xl overflow-hidden bg-[#222] relative">
         <img 
-           src={project.thumbnail} 
+           src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"} 
            alt={project.title} 
            className="w-full h-full object-cover" 
            referrerPolicy="no-referrer" 
@@ -301,7 +312,16 @@ const Card = ({
 }
 
 export default function Admin() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'clients'>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [projectsTreeOpen, setProjectsTreeOpen] = useState(true);
+  const [expandedCategory, setExpandedCategory] = useState<Record<string, boolean>>({
+    'Imobiliário': true,
+    'Publicidade': true,
+    'Institucional': true,
+  });
+  const [projectCategoryFilter, setProjectCategoryFilter] = useState<'Todas' | 'Imobiliário' | 'Publicitário' | 'Institucional'>('Todas');
+  const [newProjectCategory, setNewProjectCategory] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
   useEffect(() => {
@@ -322,6 +342,9 @@ export default function Admin() {
   const [realClients, setRealClients] = useState<Client[]>([]);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [newClientName, setNewClientName] = useState('');
+  const [newClientLogo, setNewClientLogo] = useState('');
+  const [isSavingClient, setIsSavingClient] = useState(false);
+  const [clientSaveFeedback, setClientSaveFeedback] = useState<string | null>(null);
   
   const [actionModal, setActionModal] = useState<'review' | 'download' | null>(null);
   const [actionProject, setActionProject] = useState<Project | null>(null);
@@ -329,6 +352,25 @@ export default function Admin() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
+  const [isDeletingClient, setIsDeletingClient] = useState(false);
+
+  const handleConfirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+    setIsDeletingClient(true);
+    try {
+      deleteClient(clientToDelete.id);
+      setRealClients(getClients());
+      setIsDeleteClientModalOpen(false);
+      setClientToDelete(null);
+    } catch (err) {
+      console.warn("Aviso ao excluir cliente:", err);
+    } finally {
+      setIsDeletingClient(false);
+    }
+  };
 
   useEffect(() => {
     setRealClients(getClients());
@@ -360,7 +402,7 @@ export default function Admin() {
       setIsDeleteModalOpen(false);
       setProjectToDelete(null);
     } catch (err) {
-      console.error("Error deleting project:", err);
+      console.warn("Aviso ao excluir projeto:", err);
     } finally {
       setIsDeleting(false);
     }
@@ -395,23 +437,22 @@ export default function Admin() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
 
-  // Initial default sidebar menu items
+  // Initial default sidebar menu items matching user request
   const defaultMenuItems = [
     { id: 'dashboard', iconName: 'LayoutGrid', labelKey: 'dashboard', disabled: false, section: 'main' },
     { id: 'projects', iconName: 'Folder', labelKey: 'projects', disabled: false, section: 'main' },
-    { id: 'notes', iconName: 'FileText', labelKey: 'notes', disabled: true, section: 'main' },
-    { id: 'files', iconName: 'Cloud', labelKey: 'files', disabled: true, section: 'main' },
-    { id: 'chats', iconName: 'MessageCircle', labelKey: 'chats', disabled: true, section: 'main' },
-    { id: 'mail', iconName: 'Mail', labelKey: 'mail', disabled: true, section: 'main' },
-    { id: 'users', iconName: 'Users', labelKey: 'users', disabled: true, section: 'main' },
-    { id: 'calendar', iconName: 'Calendar', labelKey: 'calendar', disabled: true, section: 'main' },
-    { id: 'knowledgeBase', iconName: 'Info', labelKey: 'knowledgeBase', disabled: true, section: 'main' },
     { id: 'clients', iconName: 'Users', labelKey: 'clients', disabled: false, section: 'main' },
-    { id: 'messenger', iconName: 'MessageSquare', labelKey: 'messenger', disabled: true, section: 'main' },
-    { id: 'settings', iconName: 'Settings', labelKey: 'settings', disabled: true, section: 'more' },
-    { id: 'learn', iconName: 'BookOpen', labelKey: 'learn', disabled: true, section: 'more' },
-    { id: 'helpCenter', iconName: 'HelpCircle', labelKey: 'helpCenter', disabled: true, section: 'more' },
-    { id: 'support', iconName: 'Headphones', labelKey: 'support', disabled: true, section: 'more' },
+    { id: 'notes', iconName: 'FileText', labelKey: 'notes', disabled: false, section: 'main' },
+    { id: 'files', iconName: 'Cloud', labelKey: 'files', disabled: false, section: 'main' },
+    { id: 'chats', iconName: 'MessageCircle', labelKey: 'chats', disabled: false, section: 'main' },
+    { id: 'mail', iconName: 'Mail', labelKey: 'mail', disabled: false, section: 'main' },
+    { id: 'calendar', iconName: 'Calendar', labelKey: 'calendar', disabled: false, section: 'main' },
+    { id: 'knowledgeBase', iconName: 'Info', labelKey: 'knowledgeBase', disabled: false, section: 'main' },
+    { id: 'messenger', iconName: 'MessageSquare', labelKey: 'messenger', disabled: false, section: 'main' },
+    { id: 'settings', iconName: 'Settings', labelKey: 'settings', disabled: false, section: 'more' },
+    { id: 'learn', iconName: 'BookOpen', labelKey: 'learn', disabled: false, section: 'more' },
+    { id: 'helpCenter', iconName: 'HelpCircle', labelKey: 'helpCenter', disabled: false, section: 'more' },
+    { id: 'support', iconName: 'Headphones', labelKey: 'support', disabled: false, section: 'more' },
   ];
 
   // Sidebar reorder state with localStorage persistence
@@ -420,17 +461,17 @@ export default function Admin() {
       const savedOrder = localStorage.getItem('animasystem_menu_items_order');
       if (savedOrder) {
         const orderIds: string[] = JSON.parse(savedOrder);
-        const map = new Map(defaultMenuItems.map(item => [item.id, item]));
+        const map = new Map(defaultMenuItems.map(item => [item.id, { ...item, disabled: false }]));
         const ordered: typeof defaultMenuItems = [];
         for (const id of orderIds) {
           const item = map.get(id);
           if (item) {
-            ordered.push(item);
+            ordered.push({ ...item, disabled: false });
             map.delete(id);
           }
         }
         for (const item of map.values()) {
-          ordered.push(item);
+          ordered.push({ ...item, disabled: false });
         }
         return ordered;
       }
@@ -496,11 +537,50 @@ export default function Admin() {
   };
 
   
-  const handleSaveClient = () => {
-    if (newClientName.trim()) {
-      addClient({ name: newClientName, logoUrl: '' });
+  const [isSyncingFirestore, setIsSyncingFirestore] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ success: boolean; message: string; code?: string } | null>(null);
+
+  const handleSyncAll = async () => {
+    setIsSyncingFirestore(true);
+    setSyncStatus(null);
+    try {
+      const res = await syncAllToFirestore();
+      setSyncStatus(res);
+      if (!res.success && res.code === 'permission-denied') {
+        setFirestorePermissionError(true);
+      }
+    } catch (e: any) {
+      setSyncStatus({ success: false, message: e?.message || "Falha na sincronização." });
+    } finally {
+      setIsSyncingFirestore(false);
+    }
+  };
+
+  const handleSaveClient = async () => {
+    const trimmedName = newClientName.trim();
+    if (!trimmedName) return;
+
+    setIsSavingClient(true);
+    setClientSaveFeedback(null);
+    try {
+      await addClient({
+        name: trimmedName,
+        logoUrl: newClientLogo.trim() || ''
+      });
+      setRealClients(getClients());
       setNewClientName('');
+      setNewClientLogo('');
       setIsCreatingClient(false);
+    } catch (err: any) {
+      console.error("Erro ao salvar cliente:", err);
+      if (err?.code === 'permission-denied' || err?.message?.includes("insufficient permissions")) {
+        setClientSaveFeedback("PERMISSION_DENIED");
+        setFirestorePermissionError(true);
+      } else {
+        setClientSaveFeedback(err?.message || "Erro ao salvar cliente no banco de dados.");
+      }
+    } finally {
+      setIsSavingClient(false);
     }
   };
 
@@ -511,6 +591,7 @@ export default function Admin() {
   ].filter(d => d.value > 0);
 
   const [firestorePermissionError, setFirestorePermissionError] = useState(false);
+  const [copiedRules, setCopiedRules] = useState(false);
 
   useEffect(() => {
     setRealProjects(getProjects());
@@ -567,9 +648,74 @@ export default function Admin() {
     }
   };
 
+  const imobiliarioProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('imobil'));
+  const publicidadeProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('publi'));
+  const institucionalProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('instituc'));
+
+  // Filtered projects for the projects view
+  const filteredProjects = realProjects.filter(p => {
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || 
+      p.title.toLowerCase().includes(q) ||
+      (p.client || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q);
+    
+    if (!matchesSearch) return false;
+    if (projectCategoryFilter === 'Todas') return true;
+    if (projectCategoryFilter === 'Imobiliário') return (p.category || '').toLowerCase().includes('imobil');
+    if (projectCategoryFilter === 'Publicitário' || projectCategoryFilter === 'Publicidade') return (p.category || '').toLowerCase().includes('publi');
+    if (projectCategoryFilter === 'Institucional') return (p.category || '').toLowerCase().includes('instituc');
+    return true;
+  });
+
   // Pagination logic
-  const totalPages = Math.ceil(realProjects.length / itemsPerPage);
-  const paginatedProjects = realProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / itemsPerPage));
+  const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const toggleCategoryExpand = (cat: string) => {
+    setExpandedCategory(prev => ({
+      ...prev,
+      [cat]: !prev[cat]
+    }));
+  };
+
+  const getHeaderTitle = () => {
+    switch (activeTab) {
+      case 'dashboard': return t.dashboard;
+      case 'clients': return t.manageClients;
+      case 'notes': return lang === 'pt' ? 'Bloco de Notas' : 'Notes';
+      case 'files': return lang === 'pt' ? 'Gerenciador de Arquivos' : 'Files Manager';
+      case 'chats': return lang === 'pt' ? 'Conversas' : 'Chats';
+      case 'mail': return lang === 'pt' ? 'Caixa de E-mail' : 'Email';
+      case 'calendar': return lang === 'pt' ? 'Calendário' : 'Calendar';
+      case 'knowledgeBase': return lang === 'pt' ? 'Base de Conhecimento' : 'Knowledge Base';
+      case 'messenger': return lang === 'pt' ? 'Mensagens' : 'Messages';
+      case 'settings': return lang === 'pt' ? 'Configurações' : 'Settings';
+      case 'learn': return lang === 'pt' ? 'Aprender' : 'Learn';
+      case 'helpCenter': return lang === 'pt' ? 'Central de Ajuda' : 'Help Center';
+      case 'support': return lang === 'pt' ? 'Suporte' : 'Support';
+      default: return t.allProjects;
+    }
+  };
+
+  const getHeaderDesc = () => {
+    switch (activeTab) {
+      case 'dashboard': return t.overviewDesc;
+      case 'clients': return t.manageClientsDesc;
+      case 'notes': return lang === 'pt' ? 'Crie notas rápidas, roteiros, checklists e briefings de projetos.' : 'Create quick notes, scripts, checklists, and project briefs.';
+      case 'files': return lang === 'pt' ? 'Armazene e gerencie mídias, contratos, arquivos RAW e exportações.' : 'Store and manage media, contracts, RAW files, and exports.';
+      case 'chats': return lang === 'pt' ? 'Canais de atendimento em tempo real com clientes e membros de equipe.' : 'Real-time client support and team communication channels.';
+      case 'mail': return lang === 'pt' ? 'Gerencie envio de propostas, notificações e trocas com produtoras.' : 'Manage proposals, client approvals, and outreach.';
+      case 'calendar': return lang === 'pt' ? 'Planejamento de diárias de filmagem, reuniões e datas de entrega.' : 'Schedule filming dates, client review meetings, and release deadlines.';
+      case 'knowledgeBase': return lang === 'pt' ? 'Documentação interna de pipelines, padrões de câmera, codecs e fluxos.' : 'Internal documentation on camera profiles, export presets, and workflows.';
+      case 'messenger': return lang === 'pt' ? 'Envie comunicados e mensagens rápidas para seus clientes e colaboradores.' : 'Direct broadcast messages and chat with clients and production team.';
+      case 'settings': return lang === 'pt' ? 'Ajuste preferências de estúdio, segurança, sincronização e aparência.' : 'Customize studio preferences, cloud storage, security, and appearance.';
+      case 'learn': return lang === 'pt' ? 'Workshops e tutoriais avançados em cinematografia, cor e iluminação.' : 'Workshops and tutorials in cinematography, color grading, and lighting.';
+      case 'helpCenter': return lang === 'pt' ? 'Respostas para dúvidas frequentes sobre a plataforma AnimaSystem.' : 'Answers to frequently asked questions about AnimaSystem.';
+      case 'support': return lang === 'pt' ? 'Abra chamados técnicos e acompanhe o status dos servidores.' : 'Submit technical support tickets and check server system health.';
+      default: return t.allProjectsDesc;
+    }
+  };
 
   return (
     <div className={`flex h-screen bg-gray-100 dark:bg-[#050505] text-gray-900 dark:text-[#E5E5E5] font-sans overflow-hidden w-full relative z-[100] fixed inset-0`}>
@@ -577,7 +723,7 @@ export default function Admin() {
 
 
       {/* Sidebar */}
-      <aside className={`${isSidebarCollapsed ? 'w-[70px]' : 'w-[260px]'} flex-shrink-0 border-r border-gray-200 dark:border-[#1a1a1a] flex flex-col h-full bg-white dark:bg-[#0a0a0a] z-50 pb-6 hidden md:flex transition-all duration-300 relative`}>
+      <aside className={`${isSidebarCollapsed ? 'w-[70px]' : 'w-[280px]'} flex-shrink-0 border-r border-gray-200 dark:border-[#1a1a1a] flex flex-col h-full bg-white dark:bg-[#0a0a0a] z-50 pb-6 hidden md:flex transition-all duration-300 relative`}>
         <div className={`h-[64px] flex-shrink-0 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between px-6'} mb-4`}>
           {!isSidebarCollapsed && (
             <div className="flex items-center gap-2">
@@ -628,39 +774,249 @@ export default function Admin() {
           <div className="mb-6">
             {!isSidebarCollapsed && <h4 className="px-3 mb-2 text-[11px] font-bold text-gray-500 dark:text-[#555555] uppercase tracking-wider">{t.navigate}</h4>}
             {isSidebarCollapsed && <div className="h-4"></div>}
-            <div className="space-y-0.5">
-              {menuItems.filter(item => item.section === 'main' && visibleMenuIds.has(item.id)).map((item) => (
-                <NavItem key={item.id} 
-                  icon={iconMap[item.iconName]} 
-                  label={(t as any)[item.labelKey] || item.labelKey} 
-                  active={activeTab === item.id} 
-                  disabled={item.disabled}
-                  onClick={() => {
-                    if (item.id === 'projects') { setActiveTab('projects'); setCurrentPage(1); }
-                    else if (item.id === 'dashboard') setActiveTab('dashboard');
-                    else if (item.id === 'clients') setActiveTab('clients');
-                  }} 
-                  collapsed={isSidebarCollapsed}
-                  draggable={!isSidebarCollapsed}
-                  onDragStart={() => (draggedItemIdRef.current = item.id)}
-                  onDragOver={(e: any) => { e.preventDefault(); dragOverItemIdRef.current = item.id; }}
-                  onDrop={handleSort}
-                />
-              ))}
+            <div className="space-y-1">
+              {menuItems.filter(item => item.section === 'main' && visibleMenuIds.has(item.id)).map((item) => {
+                const isProjects = item.id === 'projects';
+                
+                return (
+                  <div key={item.id} className="w-full">
+                    <div className="relative flex items-center">
+                      <NavItem 
+                        icon={iconMap[item.iconName]} 
+                        label={(t as any)[item.labelKey] || item.labelKey} 
+                        active={activeTab === item.id && !editingProject} 
+                        disabled={item.disabled}
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          setIsCreating(false);
+                          setEditingProject(null);
+                          if (item.id === 'projects') setCurrentPage(1);
+                        }} 
+                        collapsed={isSidebarCollapsed}
+                        draggable={!isSidebarCollapsed}
+                        onDragStart={() => (draggedItemIdRef.current = item.id)}
+                        onDragOver={(e: any) => { e.preventDefault(); dragOverItemIdRef.current = item.id; }}
+                        onDrop={handleSort}
+                      />
+                      {isProjects && !isSidebarCollapsed && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProjectsTreeOpen(!projectsTreeOpen);
+                          }}
+                          className="absolute right-2 p-1 text-gray-400 hover:text-black dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-[#222] transition-colors"
+                          title="Recolher/Expandir coleções"
+                        >
+                          <ChevronDown size={14} className={`transition-transform duration-200 ${projectsTreeOpen ? '' : '-rotate-90'}`} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Expandable Collections Tree: PROJETOS > IMOBILIARIO / PUBLICIDADE / INSTITUCIONAL > PROJETOS */}
+                    {isProjects && !isSidebarCollapsed && projectsTreeOpen && (
+                      <div className="mt-1 ml-3 pl-2 border-l border-gray-200 dark:border-[#222] space-y-1.5 py-1">
+                        {/* 1. IMOBILIÁRIO */}
+                        <div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#181818] transition-colors group">
+                            <button
+                              onClick={() => {
+                                toggleCategoryExpand('Imobiliário');
+                                setProjectCategoryFilter('Imobiliário');
+                                setActiveTab('projects');
+                                setIsCreating(false);
+                                setEditingProject(null);
+                              }}
+                              className="flex items-center gap-1.5 flex-1 text-left"
+                            >
+                              <ChevronRight size={12} className={`transition-transform text-gray-400 ${expandedCategory['Imobiliário'] ? 'rotate-90' : ''}`} />
+                              <span className="tracking-wide uppercase text-[11px] font-bold text-blue-600 dark:text-blue-400">Imobiliário</span>
+                              <span className="text-[10px] text-gray-400 font-mono">({imobiliarioProjects.length})</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTab('projects');
+                                setNewProjectCategory('Imobiliário');
+                                setEditingProject(null);
+                                setIsCreating(true);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded transition-opacity"
+                              title="Novo projeto Imobiliário"
+                            >
+                              <Plus size={13} />
+                            </button>
+                          </div>
+
+                          {expandedCategory['Imobiliário'] && (
+                            <div className="ml-3 pl-2 border-l border-gray-200/60 dark:border-[#222] space-y-0.5 mt-0.5">
+                              {imobiliarioProjects.map(proj => (
+                                <button
+                                  key={proj.id}
+                                  onClick={() => {
+                                    setActiveTab('projects');
+                                    setEditingProject(proj);
+                                    setIsCreating(false);
+                                  }}
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${
+                                    editingProject?.id === proj.id 
+                                      ? 'bg-blue-500/15 text-blue-500 font-bold' 
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
+                                  }`}
+                                  title={`PROJETOS > IMOBILIÁRIO > ${proj.title}`}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                                  <span className="truncate">{proj.title}</span>
+                                </button>
+                              ))}
+                              {imobiliarioProjects.length === 0 && (
+                                <span className="text-[10px] text-gray-400 italic px-2 py-0.5 block">Nenhum projeto</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. PUBLICIDADE */}
+                        <div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#181818] transition-colors group">
+                            <button
+                              onClick={() => {
+                                toggleCategoryExpand('Publicidade');
+                                setProjectCategoryFilter('Publicitário');
+                                setActiveTab('projects');
+                                setIsCreating(false);
+                                setEditingProject(null);
+                              }}
+                              className="flex items-center gap-1.5 flex-1 text-left"
+                            >
+                              <ChevronRight size={12} className={`transition-transform text-gray-400 ${expandedCategory['Publicidade'] ? 'rotate-90' : ''}`} />
+                              <span className="tracking-wide uppercase text-[11px] font-bold text-amber-600 dark:text-amber-400">Publicidade</span>
+                              <span className="text-[10px] text-gray-400 font-mono">({publicidadeProjects.length})</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTab('projects');
+                                setNewProjectCategory('Publicitário');
+                                setEditingProject(null);
+                                setIsCreating(true);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded transition-opacity"
+                              title="Novo projeto Publicitário"
+                            >
+                              <Plus size={13} />
+                            </button>
+                          </div>
+
+                          {expandedCategory['Publicidade'] && (
+                            <div className="ml-3 pl-2 border-l border-gray-200/60 dark:border-[#222] space-y-0.5 mt-0.5">
+                              {publicidadeProjects.map(proj => (
+                                <button
+                                  key={proj.id}
+                                  onClick={() => {
+                                    setActiveTab('projects');
+                                    setEditingProject(proj);
+                                    setIsCreating(false);
+                                  }}
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${
+                                    editingProject?.id === proj.id 
+                                      ? 'bg-amber-500/15 text-amber-500 font-bold' 
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
+                                  }`}
+                                  title={`PROJETOS > PUBLICIDADE > ${proj.title}`}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                                  <span className="truncate">{proj.title}</span>
+                                </button>
+                              ))}
+                              {publicidadeProjects.length === 0 && (
+                                <span className="text-[10px] text-gray-400 italic px-2 py-0.5 block">Nenhum projeto</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3. INSTITUCIONAL */}
+                        <div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#181818] transition-colors group">
+                            <button
+                              onClick={() => {
+                                toggleCategoryExpand('Institucional');
+                                setProjectCategoryFilter('Institucional');
+                                setActiveTab('projects');
+                                setIsCreating(false);
+                                setEditingProject(null);
+                              }}
+                              className="flex items-center gap-1.5 flex-1 text-left"
+                            >
+                              <ChevronRight size={12} className={`transition-transform text-gray-400 ${expandedCategory['Institucional'] ? 'rotate-90' : ''}`} />
+                              <span className="tracking-wide uppercase text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Institucional</span>
+                              <span className="text-[10px] text-gray-400 font-mono">({institucionalProjects.length})</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTab('projects');
+                                setNewProjectCategory('Institucional');
+                                setEditingProject(null);
+                                setIsCreating(true);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded transition-opacity"
+                              title="Novo projeto Institucional"
+                            >
+                              <Plus size={13} />
+                            </button>
+                          </div>
+
+                          {expandedCategory['Institucional'] && (
+                            <div className="ml-3 pl-2 border-l border-gray-200/60 dark:border-[#222] space-y-0.5 mt-0.5">
+                              {institucionalProjects.map(proj => (
+                                <button
+                                  key={proj.id}
+                                  onClick={() => {
+                                    setActiveTab('projects');
+                                    setEditingProject(proj);
+                                    setIsCreating(false);
+                                  }}
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${
+                                    editingProject?.id === proj.id 
+                                      ? 'bg-emerald-500/15 text-emerald-500 font-bold' 
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
+                                  }`}
+                                  title={`PROJETOS > INSTITUCIONAL > ${proj.title}`}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                                  <span className="truncate">{proj.title}</span>
+                                </button>
+                              ))}
+                              {institucionalProjects.length === 0 && (
+                                <span className="text-[10px] text-gray-400 italic px-2 py-0.5 block">Nenhum projeto</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div className="mb-6">
             {!isSidebarCollapsed && <h4 className="px-3 mb-2 text-[11px] font-bold text-gray-500 dark:text-[#555555] uppercase tracking-wider">{t.more}</h4>}
             {isSidebarCollapsed && <div className="h-4"></div>}
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {menuItems.filter(item => item.section === 'more' && visibleMenuIds.has(item.id)).map((item) => (
                 <NavItem key={item.id} 
                   icon={iconMap[item.iconName]} 
                   label={(t as any)[item.labelKey] || item.labelKey} 
                   active={activeTab === item.id} 
                   disabled={item.disabled}
-                  onClick={() => {}} 
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setIsCreating(false);
+                    setEditingProject(null);
+                  }} 
                   collapsed={isSidebarCollapsed}
                   draggable={!isSidebarCollapsed}
                   onDragStart={() => (draggedItemIdRef.current = item.id)}
@@ -689,11 +1045,37 @@ export default function Admin() {
             <div className="flex items-center gap-6">
               <div className="relative hidden sm:block">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#777]" />
-                <input type="text" placeholder={t.search} className="w-[150px] lg:w-[220px] bg-gray-100 dark:bg-[#111111] border border-gray-200 dark:border-[#222] text-[13px] text-gray-900 dark:text-white rounded-full pl-9 pr-4 py-2 focus:outline-none focus:border-gray-300 dark:focus:border-[#444] transition-colors" />
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder={t.search} 
+                  className="w-[150px] lg:w-[220px] bg-gray-100 dark:bg-[#111111] border border-gray-200 dark:border-[#222] text-[13px] text-gray-900 dark:text-white rounded-full pl-9 pr-4 py-2 focus:outline-none focus:border-gray-300 dark:focus:border-[#444] transition-colors" 
+                />
               </div>
   
-              <nav className="hidden md:flex items-center gap-6 text-[13px] font-semibold text-gray-500 dark:text-[#888]">
-                <a href="#" className="text-gray-900 dark:text-white">{t.dashboard}</a>
+              <nav className="hidden md:flex items-center gap-2 text-[13px] font-semibold text-gray-500 dark:text-[#888]">
+                <button
+                  onClick={() => {
+                    setActiveTab('dashboard');
+                    setIsCreating(false);
+                    setEditingProject(null);
+                  }}
+                  className={`hover:text-gray-900 dark:hover:text-white transition-colors ${activeTab === 'dashboard' ? 'text-gray-900 dark:text-white' : ''}`}
+                >
+                  {t.dashboard}
+                </button>
+                {activeTab !== 'dashboard' && (
+                  <>
+                    <span className="text-gray-300 dark:text-gray-700">/</span>
+                    <span className="text-gray-900 dark:text-white capitalize">
+                      {(t as any)[activeTab] || activeTab}
+                    </span>
+                  </>
+                )}
               </nav>
             </div>
   
@@ -785,12 +1167,35 @@ export default function Admin() {
             
             {(isCreating || editingProject) ? (
               <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-200 dark:border-[#222] p-6 sm:p-8 flex-1 shadow-sm relative mb-6">
+                {/* Hierarchical Breadcrumb Header requested by user: PROJETOS > IMOBILIÁRIO > CASA ALPHAVILLE */}
+                <div className="mb-6 pb-4 border-b border-gray-100 dark:border-[#222] flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-mono text-gray-500 uppercase tracking-wider flex-wrap">
+                    <span className="font-bold text-gray-400">PROJETOS</span>
+                    <span>&gt;</span>
+                    <span className="font-bold text-blue-500">{((newProjectCategory || editingProject?.category) || 'IMOBILIÁRIO').toUpperCase()}</span>
+                    <span>&gt;</span>
+                    <span className="font-bold text-black dark:text-white">{editingProject?.title?.toUpperCase() || 'NOVO PROJETO'}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsCreating(false);
+                      setEditingProject(null);
+                      setNewProjectCategory(null);
+                    }}
+                    className="text-xs text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Voltar à lista
+                  </button>
+                </div>
+
                 <ProjectForm 
                   project={editingProject} 
+                  initialCategory={newProjectCategory || editingProject?.category}
                   onSave={handleSaveProject} 
                   onCancel={() => {
                     setIsCreating(false);
                     setEditingProject(null);
+                    setNewProjectCategory(null);
                   }}
                   onDelete={(project) => {
                     setProjectToDelete(project);
@@ -808,21 +1213,84 @@ export default function Admin() {
               <>
             {/* Firestore Permission Warning Banner */}
             {firestorePermissionError && (
-              <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-start justify-between gap-4">
-                <div className="text-[13px] space-y-1">
-                  <div className="font-bold flex items-center gap-2">
-                    <AlertCircle size={16} />
-                    Atenção: Permissão de gravação pendente no Firebase Console
+              <div className="mb-6 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex flex-col items-start justify-between gap-4 shadow-sm">
+                <div className="text-[13px] space-y-2 flex-1 w-full">
+                  <div className="font-bold flex items-center gap-2 text-base text-amber-700 dark:text-amber-300">
+                    <AlertCircle size={18} />
+                    Liberar Gravação no Firebase Console (Cloud Firestore)
                   </div>
-                  <p className="text-gray-600 dark:text-[#aaa]">
-                    O projeto foi salvo no navegador, mas o Firestore recusou a sincronização com a nuvem (permissão negada). Para que seus projetos fiquem salvos permanentemente na nuvem e apareçam para todos os visitantes da internet, atualize as <strong>Regras do Firestore</strong> no console do Firebase (<code className="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-black dark:text-white">allow read, write: if true;</code>).
+                  <p className="text-gray-700 dark:text-[#ccc] leading-relaxed">
+                    O Firebase Console bloqueou as gravações por falta de permissão (<code className="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-black dark:text-white font-mono text-xs">PERMISSION_DENIED</code>). Para que todos os clientes, projetos e mensagens entrem no banco de dados, siga estes 3 passos simples:
                   </p>
+                  <ol className="list-decimal list-inside space-y-1 text-gray-700 dark:text-[#bbb] pl-1 font-medium text-xs">
+                    <li>Na tela do Firebase Console aberta, clique na aba <strong className="text-black dark:text-white">Regras</strong> (ao lado de <em>Dados</em>).</li>
+                    <li>Substitua o conteúdo pelo código abaixo e clique em <strong className="text-black dark:text-white">Publicar</strong>.</li>
+                    <li>Volte aqui e clique em <strong className="text-black dark:text-white">"Sincronizar Tudo"</strong>.</li>
+                  </ol>
+                  <div className="p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-[11px] text-gray-800 dark:text-gray-200 overflow-x-auto select-all border border-black/10 dark:border-white/10">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
+                  </div>
+                  <div className="pt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const rules = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+                        navigator.clipboard.writeText(rules);
+                        setCopiedRules(true);
+                        setTimeout(() => setCopiedRules(false), 3000);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 transition-colors cursor-pointer shadow-sm"
+                    >
+                      <Copy size={14} />
+                      {copiedRules ? "Regras Copiadas!" : "Copiar Regras Prontas"}
+                    </button>
+                    <a
+                      href="https://console.firebase.google.com/project/danielvalevm/firestore/rules"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-xs hover:bg-amber-500/10 transition-colors"
+                    >
+                      <Globe size={14} />
+                      Abrir Aba Regras no Firebase
+                    </a>
+                    <button
+                      onClick={handleSyncAll}
+                      disabled={isSyncingFirestore}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Cloud size={14} className={isSyncingFirestore ? "animate-pulse" : ""} />
+                      {isSyncingFirestore ? "Testando e Sincronizando..." : "Testar e Sincronizar Agora"}
+                    </button>
+                  </div>
                 </div>
                 <button 
                   onClick={() => setFirestorePermissionError(false)} 
-                  className="text-gray-400 hover:text-black dark:hover:text-white text-xs font-semibold px-2 py-1 rounded transition-colors"
+                  className="text-gray-400 hover:text-black dark:hover:text-white text-xs font-semibold p-1.5 rounded transition-colors self-start"
                 >
                   <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* Sync Feedback Toast / Banner */}
+            {syncStatus && (
+              <div className={`mb-6 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs font-semibold ${
+                syncStatus.success 
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                  : 'bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {syncStatus.success ? <Check size={16} /> : <AlertCircle size={16} />}
+                  <span>{syncStatus.message}</span>
+                </div>
+                <button onClick={() => setSyncStatus(null)} className="opacity-70 hover:opacity-100 p-1 cursor-pointer">
+                  <X size={14} />
                 </button>
               </div>
             )}
@@ -831,37 +1299,51 @@ export default function Admin() {
             <div className="flex flex-wrap items-center justify-between gap-6 mb-6 flex-shrink-0">
               <div>
                 <h1 className="text-2xl font-bold text-black dark:text-white mb-1">
-                  {activeTab === 'dashboard' ? t.dashboard : activeTab === 'clients' ? t.manageClients : t.allProjects}
+                  {getHeaderTitle()}
                 </h1>
                 <p className="text-gray-500 dark:text-[#777] text-[13px] font-medium">
-                  {activeTab === 'dashboard' ? t.overviewDesc : activeTab === 'clients' ? t.manageClientsDesc : t.allProjectsDesc}
+                  {getHeaderDesc()}
                 </p>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+
+
                 {activeTab === 'projects' && (
-                  <div className="hidden sm:flex items-center bg-white dark:bg-[#111111] rounded-full p-1 border border-gray-200 dark:border-[#222]">
+                  <>
+                    <div className="hidden sm:flex items-center bg-white dark:bg-[#111111] rounded-full p-1 border border-gray-200 dark:border-[#222]">
+                      <button 
+                        onClick={() => setViewMode('grid')}
+                        className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'grid' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
+                      >
+                        <LayoutGrid size={14} /> {t.gridView}
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('list')}
+                        className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'list' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
+                      >
+                        <Folder size={14} /> {t.listView}
+                      </button>
+                    </div>
+                    
                     <button 
-                      onClick={() => setViewMode('grid')}
-                      className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'grid' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
+                      onClick={() => {
+                        setNewProjectCategory(projectCategoryFilter !== 'Todas' ? projectCategoryFilter : 'Imobiliário');
+                        setIsCreating(true);
+                      }}
+                      className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
                     >
-                      <LayoutGrid size={14} /> {t.gridView}
+                      <Plus size={16} /> {t.addProject}
                     </button>
-                    <button 
-                      onClick={() => setViewMode('list')}
-                      className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'list' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
-                    >
-                      <Folder size={14} /> {t.listView}
-                    </button>
-                  </div>
+                  </>
                 )}
-                
-                {activeTab === 'projects' && (
+
+                {activeTab === 'clients' && (
                   <button 
-                    onClick={() => setIsCreating(true)}
-                    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm"
+                    onClick={() => setIsCreatingClient(true)}
+                    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
                   >
-                    <Plus size={16} /> {t.addProject}
+                    <Plus size={16} /> {lang === 'pt' ? 'Adicionar Cliente' : 'Add Client'}
                   </button>
                 )}
               </div>
@@ -870,32 +1352,42 @@ export default function Admin() {
             {/* Content Display */}
             {activeTab === 'clients' ? (
               <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <div className="flex justify-between items-center mb-6 flex-shrink-0">
-                  <h3 className="text-xl font-bold text-black dark:text-white">{t.manageClients}</h3>
-                  <button 
-                    onClick={() => setIsCreatingClient(true)}
-                    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm"
-                  >
-                    <Plus size={16} /> Add Clients
-                  </button>
-                </div>
-                
                 {realClients.length === 0 ? (
                   <div className="flex-1 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 flex flex-col justify-center items-center shadow-sm h-full min-h-[400px]">
                     <div className="w-20 h-20 bg-gray-100 dark:bg-[#1a1a1a] rounded-full flex items-center justify-center mb-6">
                       <Briefcase size={32} className="text-gray-400 dark:text-[#555]" />
                     </div>
-                    <h3 className="text-xl font-bold text-black dark:text-white mb-2">Nenhum cliente</h3>
-                    <p className="text-gray-500 dark:text-[#777] text-[13px] mb-8 text-center max-w-sm">Nenhum cliente cadastrado. Clique no botão acima para adicionar seu primeiro cliente.</p>
+                    <h3 className="text-xl font-bold text-black dark:text-white mb-6">Nenhum cliente cadastrado</h3>
+                    <button 
+                      onClick={() => setIsCreatingClient(true)}
+                      className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      <Plus size={16} /> Adicionar Primeiro Cliente
+                    </button>
                   </div>
                 ) : (
                   <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 content-start pb-6">
                     {realClients.map(client => (
-                      <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm">
+                      <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm hover:border-gray-300 dark:hover:border-[#333] transition-all">
+                        <button
+                          onClick={() => {
+                            setClientToDelete(client);
+                            setIsDeleteClientModalOpen(true);
+                          }}
+                          className="absolute top-3 right-3 p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                          title={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
+                          aria-label={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                         <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center mb-4 border border-gray-200 dark:border-[#333]">
-                           {client.logoUrl ? <img src={client.logoUrl} alt={client.name} className="w-full h-full object-cover" /> : <User size={24} className="text-gray-400" />}
+                           {client.logoUrl?.trim() ? (
+                             <img src={client.logoUrl.trim()} alt={client.name} className="w-full h-full object-cover" />
+                           ) : (
+                             <User size={24} className="text-gray-400" />
+                           )}
                         </div>
-                        <h4 className="font-bold text-[15px] text-gray-900 dark:text-white">{client.name}</h4>
+                        <h4 className="font-bold text-[15px] text-gray-900 dark:text-white text-center truncate w-full">{client.name}</h4>
                       </div>
                     ))}
                   </div>
@@ -964,8 +1456,32 @@ export default function Admin() {
                    </div>
                 </div>
               </div>
+            ) : activeTab === 'notes' ? (
+              <NotesTab lang={lang} />
+            ) : activeTab === 'files' ? (
+              <FilesTab lang={lang} />
+            ) : activeTab === 'chats' ? (
+              <ConversasTab lang={lang} />
+            ) : activeTab === 'mail' ? (
+              <EmailTab lang={lang} />
+            ) : activeTab === 'calendar' ? (
+              <CalendarTab lang={lang} />
+            ) : activeTab === 'knowledgeBase' ? (
+              <KnowledgeBaseTab lang={lang} />
+            ) : activeTab === 'messenger' ? (
+              <MessagesTab lang={lang} />
+            ) : activeTab === 'settings' ? (
+              <SettingsTab lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} />
+            ) : activeTab === 'learn' ? (
+              <LearnTab lang={lang} />
+            ) : activeTab === 'helpCenter' ? (
+              <HelpCenterTab lang={lang} onNavigateToSupport={() => setActiveTab('support')} />
+            ) : activeTab === 'support' ? (
+              <SupportTab lang={lang} />
             ) : (
               <div className="flex-1 flex flex-col h-full overflow-hidden">
+
+
                 <div className={`flex-1 ${viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5" : "flex flex-col gap-3"} overflow-y-auto no-scrollbar pb-4`}>
                   {paginatedProjects.map(project => (
                     <Card 
@@ -980,8 +1496,20 @@ export default function Admin() {
                     />
                   ))}
                   {paginatedProjects.length === 0 && (
-                    <div className="col-span-full flex items-center justify-center h-full text-gray-500 dark:text-[#777] min-h-[200px]">
-                       {t.noProjects}
+                    <div className="col-span-full flex flex-col items-center justify-center h-full text-gray-500 dark:text-[#777] min-h-[260px] border border-dashed border-gray-200 dark:border-[#222] rounded-3xl p-8 bg-gray-50/50 dark:bg-[#151515]/30">
+                       <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#222] flex items-center justify-center mb-4 text-gray-400">
+                         <Folder size={28} />
+                       </div>
+                       <h3 className="text-lg font-bold text-black dark:text-white mb-1">Nenhum projeto cadastrado</h3>
+                       <p className="text-xs text-gray-500 dark:text-[#777] mb-6 text-center max-w-sm">
+                         Os projetos fictícios foram limpos. Clique no botão abaixo para adicionar seu primeiro trabalho real.
+                       </p>
+                       <button
+                         onClick={() => setIsCreating(true)}
+                         className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm"
+                       >
+                         <Plus size={16} /> {t.addProject}
+                       </button>
                     </div>
                   )}
                 </div>
@@ -1072,31 +1600,106 @@ export default function Admin() {
         <div className="absolute inset-0 bg-black/60 z-[300] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl w-full max-w-md p-6 shadow-xl">
             <h3 className="text-lg font-bold text-black dark:text-white mb-4">Adicionar Novo Cliente</h3>
+
+            {clientSaveFeedback && (
+              <div className="mb-4 p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-2xl text-xs text-red-600 dark:text-red-400">
+                {clientSaveFeedback === "PERMISSION_DENIED" ? (
+                  <div className="space-y-2">
+                    <p className="font-bold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+                      <AlertCircle size={15} />
+                      O Firebase Console bloqueou a gravação (PERMISSION_DENIED)
+                    </p>
+                    <p className="text-gray-700 dark:text-[#bbb] leading-relaxed">
+                      Na aba <strong>Regras</strong> do seu Firebase Console (ao lado de <em>Dados</em>), publique as regras abaixo para liberar gravações no banco:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const rules = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+                          navigator.clipboard.writeText(rules);
+                          setCopiedRules(true);
+                          setTimeout(() => setCopiedRules(false), 3000);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        <Copy size={13} />
+                        {copiedRules ? "Regras Copiadas!" : "Copiar Regras Prontas"}
+                      </button>
+                      <a
+                        href="https://console.firebase.google.com/project/danielvalevm/firestore/rules"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 font-semibold flex items-center gap-1 hover:bg-red-100 dark:hover:bg-red-900/30"
+                      >
+                        <Globe size={13} />
+                        Abrir Aba Regras
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  clientSaveFeedback
+                )}
+              </div>
+            )}
+
             <div className="space-y-4 mb-6">
               <div>
-                <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block">Nome do Cliente</label>
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block">
+                  Nome do Cliente <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="text" 
                   value={newClientName}
                   onChange={(e) => setNewClientName(e.target.value)}
-                  className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors"
-                  placeholder="Ex: Linea Studio"
+                  className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
+                  placeholder="Ex: Construtora Alfa"
                   autoFocus
+                  disabled={isSavingClient}
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block">
+                  Logo ou Imagem (URL Opcional)
+                </label>
+                <input 
+                  type="text" 
+                  value={newClientLogo}
+                  onChange={(e) => setNewClientLogo(e.target.value)}
+                  className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
+                  placeholder="https://exemplo.com/logo.png (opcional)"
+                  disabled={isSavingClient}
                 />
               </div>
             </div>
+
             <div className="flex items-center justify-end gap-3">
               <button 
-                onClick={() => setIsCreatingClient(false)}
-                className="px-5 py-2 rounded-full border border-gray-300 dark:border-[#222] text-gray-600 dark:text-[#ccc] text-[13px] font-bold hover:bg-gray-100 dark:bg-[#1a1a1a] transition-colors"
+                onClick={() => {
+                  if (!isSavingClient) {
+                    setIsCreatingClient(false);
+                    setClientSaveFeedback(null);
+                  }
+                }}
+                disabled={isSavingClient}
+                className="px-5 py-2.5 rounded-full border border-gray-300 dark:border-[#222] text-gray-600 dark:text-[#ccc] text-[13px] font-bold hover:bg-gray-100 dark:hover:bg-[#1a1a1a] transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button 
                 onClick={handleSaveClient}
-                className="bg-black text-white dark:bg-white dark:text-black px-5 py-2 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+                disabled={isSavingClient || !newClientName.trim()}
+                className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
               >
-                Salvar Cliente
+                {isSavingClient ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Salvando no Banco...
+                  </>
+                ) : (
+                  'Salvar no Banco de Dados'
+                )}
               </button>
             </div>
           </div>
@@ -1216,6 +1819,29 @@ export default function Admin() {
           if (!isDeleting) {
             setIsDeleteModalOpen(false);
             setProjectToDelete(null);
+          }
+        }}
+      />
+
+      {/* Delete Client Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteClientModalOpen}
+        title={lang === 'pt' ? 'Excluir Cliente' : 'Delete Client'}
+        message={
+          lang === 'pt'
+            ? `Tem certeza que deseja excluir o cliente "${clientToDelete?.name || ''}"? Esta ação removerá o cliente da listagem.`
+            : `Are you sure you want to delete the client "${clientToDelete?.name || ''}"? This action will remove the client from the list.`
+        }
+        iconType="danger"
+        severity="danger"
+        confirmLabel={lang === 'pt' ? (isDeletingClient ? 'Excluindo...' : 'Excluir Cliente') : (isDeletingClient ? 'Deleting...' : 'Delete Client')}
+        cancelLabel={lang === 'pt' ? 'Cancelar' : 'Cancel'}
+        isLoading={isDeletingClient}
+        onConfirm={handleConfirmDeleteClient}
+        onCancel={() => {
+          if (!isDeletingClient) {
+            setIsDeleteClientModalOpen(false);
+            setClientToDelete(null);
           }
         }}
       />

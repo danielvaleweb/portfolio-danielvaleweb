@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Film } from "lucide-react";
 import { Project } from "../types";
 import { getProjects } from "../utils/storage";
 import GlareHover from "./GlareHover";
@@ -23,7 +24,7 @@ function BlurImage({ project }: { project: Project }) {
       </AnimatePresence>
 
       <motion.img
-        src={project.thumbnail}
+        src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
         alt={project.title}
         loading="lazy"
         onLoad={() => setIsLoaded(true)}
@@ -151,6 +152,22 @@ export default function Gallery() {
   const imobiliarioVideos = videoProjects.filter(p => p.category === 'Imobiliário');
   const publicitarioVideos = videoProjects.filter(p => p.category === 'Publicitário');
   const institucionalVideos = videoProjects.filter(p => p.category === 'Institucional');
+
+  if (videoProjects.length === 0) {
+    return (
+      <section id="trabalhos" className="pb-20 scroll-mt-24 flex flex-col items-center w-full px-6">
+        <div className="w-full max-w-2xl py-16 px-8 rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/50 text-center flex flex-col items-center">
+          <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 mb-4">
+            <Film size={26} />
+          </div>
+          <h3 className="text-xl font-bold text-neutral-800 mb-2">Novos projetos em breve</h3>
+          <p className="text-sm text-neutral-500 max-w-md">
+            O portfólio está sendo preparado. Novos trabalhos audiovisuais e cinematográficos serão publicados aqui em breve.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="trabalhos" className="pb-20 scroll-mt-24 flex flex-col items-center w-full">

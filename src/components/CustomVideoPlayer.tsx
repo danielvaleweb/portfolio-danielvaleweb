@@ -149,8 +149,8 @@ export default function CustomVideoPlayer({ src, title, poster, onClose, onComme
     >
       <video
         ref={videoRef}
-        src={src}
-        poster={poster}
+        src={src || undefined}
+        poster={poster || undefined}
         className="w-full h-full object-contain cursor-pointer"
         onClick={togglePlay}
         onTimeUpdate={handleTimeUpdate}

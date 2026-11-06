@@ -4,7 +4,8 @@ import { Project, Evaluation } from "../types";
 import { getProjects, getEvaluations, updateProject, addNotification } from "../utils/storage";
 import { motion, AnimatePresence } from "motion/react";
 import CustomVideoPlayer from "../components/CustomVideoPlayer";
-import { ArrowLeft, Download, Lock, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Download, Lock, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
+import { triggerDownload } from "../utils/downloadHelper";
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -13,6 +14,7 @@ export default function ProjectDetail() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadCodeInput, setDownloadCodeInput] = useState('');
   const [downloadError, setDownloadError] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [playingAudio, setPlayingAudio] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -162,28 +164,18 @@ export default function ProjectDetail() {
 
 
   const handleDirectDownload = async (url: string) => {
+    if (!url) return;
+    setIsDownloading(true);
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = blobUrl;
-      const filename = url.split('/').pop() || 'download';
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(blobUrl);
-      document.body.removeChild(a);
+      await triggerDownload(url);
+      // Brief feedback delay for smooth UX
+      await new Promise(res => setTimeout(res, 800));
     } catch (err) {
-      // Fallback if CORS prevents fetch
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '';
-      a.target = '_self'; // try to download in same tab if possible, or _blank
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      console.warn("Aviso ao processar download:", err);
+    } finally {
+      setIsDownloading(false);
+      setShowDownloadModal(false);
+      setDownloadCodeInput('');
     }
   };
 
@@ -344,7 +336,7 @@ export default function ProjectDetail() {
               <AnimatePresence mode="wait">
                 <motion.img
                   key={activePhotoIndex}
-                  src={currentImage}
+                  src={currentImage || project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
                   alt={`${project.title} - Foto ${activePhotoIndex + 1}`}
                   initial={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
                   animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
@@ -420,12 +412,9 @@ export default function ProjectDetail() {
                   <button
                     onClick={() => {
                       if (project.downloadCode) {
-                        const code = window.prompt("Por favor, insira o código de acesso para download:");
-                        if (code === project.downloadCode) {
-                          handleDirectDownload(project.downloadUrl);
-                        } else if (code !== null) {
-                          window.alert("Código de acesso incorreto.");
-                        }
+                        setShowDownloadModal(true);
+                        setDownloadCodeInput('');
+                        setDownloadError('');
                       } else {
                         handleDirectDownload(project.downloadUrl);
                       }
@@ -459,7 +448,7 @@ export default function ProjectDetail() {
                       : "border-neutral-800 hover:border-neutral-500 opacity-60 hover:opacity-100"
                   }`}
                 >
-                  <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={img || project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </button>
               ))}
             </div>
@@ -543,7 +532,7 @@ export default function ProjectDetail() {
                   onClick={() => setShowVideoModal(true)}
                 >
                   <img
-                    src={project.thumbnail}
+                    src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
                     alt={project.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
@@ -612,9 +601,9 @@ export default function ProjectDetail() {
                 {/* Client Profile Info at the top */}
                 <div className="flex items-center gap-3.5 mb-6">
                   <div className="w-12 h-12 rounded-full bg-neutral-100 border border-neutral-200/50 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold text-neutral-800 text-sm">
-                    {evaluation.photoUrl ? (
+                    {evaluation.photoUrl?.trim() ? (
                       <img
-                        src={evaluation.photoUrl}
+                        src={evaluation.photoUrl.trim()}
                         alt={evaluation.clientName}
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
@@ -805,7 +794,16 @@ export default function ProjectDetail() {
                 <Download size={20} className="text-neutral-800" />
               </div>
               
-              <h3 className="text-xl font-bold text-neutral-900 mb-2">Código de Acesso</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xl font-bold text-neutral-900">Código de Acesso</h3>
+                <div className="group relative flex items-center justify-center">
+                  <HelpCircle size={16} className="text-neutral-400 hover:text-neutral-600 cursor-help transition-colors" />
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 bg-neutral-900 text-white text-xs p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center shadow-xl font-medium leading-relaxed">
+                    Para ter acesso ao código, basta pedir em nosso WhatsApp ou verificar a sua caixa de entrada.
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
+                  </div>
+                </div>
+              </div>
               <p className="text-sm text-neutral-500 mb-6">Este projeto é protegido. Insira o código de download para acessar os arquivos em alta resolução.</p>
               
               <div className="space-y-4">
@@ -829,15 +827,26 @@ export default function ProjectDetail() {
                 <button 
                   onClick={() => {
                     if (downloadCodeInput === project.downloadCode) {
+                      if (!project.downloadUrl) {
+                        setDownloadError('Link de download indisponível no momento.');
+                        return;
+                      }
                       handleDirectDownload(project.downloadUrl);
-                      setShowDownloadModal(false);
                     } else {
                       setDownloadError('Código de acesso incorreto. Tente novamente.');
                     }
                   }}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-colors"
+                  disabled={isDownloading}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Acessar Arquivos
+                  {isDownloading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Iniciando download...
+                    </>
+                  ) : (
+                    'Iniciar Download'
+                  )}
                 </button>
               </div>
             </motion.div>

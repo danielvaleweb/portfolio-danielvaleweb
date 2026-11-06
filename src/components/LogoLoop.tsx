@@ -272,14 +272,18 @@ export const LogoLoop = memo(
             </li>
           );
         }
-        const isNodeItem = 'node' in item && item.node !== undefined;
+        const isNodeItem = ('node' in item && item.node !== undefined) || !item.src;
         const content = isNodeItem ? (
           <span className="logoloop__node" aria-hidden={!!item.href && !item.ariaLabel}>
-            {item.node}
+            {'node' in item && item.node !== undefined ? item.node : (
+              <span className="font-bold text-neutral-800 dark:text-neutral-200 tracking-tight text-sm uppercase px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
+                {item.title || item.alt || ''}
+              </span>
+            )}
           </span>
         ) : (
           <img
-            src={item.src}
+            src={item.src || undefined}
             srcSet={item.srcSet}
             sizes={item.sizes}
             width={item.width}

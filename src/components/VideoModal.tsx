@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { parseDownloadUrl } from "../utils/downloadHelper";
 
 interface VideoModalProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, downloadU
                 {isEmbed ? (
                   <iframe
                     key={videoUrl}
-                    src={getEmbedUrl(videoUrl)}
+                    src={getEmbedUrl(videoUrl) || undefined}
                     title={title}
                     className="absolute inset-0 w-full h-full border-none"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -120,7 +121,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, downloadU
                 ) : (
                   <video
                     ref={videoRef}
-                    src={videoUrl}
+                    src={videoUrl || undefined}
                     autoPlay
                     playsInline
                     onContextMenu={(e) => e.preventDefault()}
@@ -172,7 +173,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, downloadU
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
-                        href={downloadUrl}
+                        href={parseDownloadUrl(downloadUrl).url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute left-4 top-1/2 -translate-y-1/2 z-[110] bg-black/60 backdrop-blur-md px-4 py-8 rounded-full border border-white/20 text-white/70 text-[10px] uppercase tracking-[0.3em] font-bold [writing-mode:vertical-lr] hover:bg-white hover:text-black transition-all duration-300 shadow-xl"

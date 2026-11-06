@@ -94,7 +94,7 @@ export default function Evaluate() {
                 <div className="mb-7 flex items-center gap-3.5 bg-neutral-50/90 border border-neutral-200/70 rounded-2xl p-3.5">
                   <div className="w-16 h-12 rounded-xl overflow-hidden bg-neutral-200 flex-shrink-0 relative border border-neutral-200/60 shadow-xs">
                     <img
-                      src={project.thumbnail}
+                      src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
                       alt={project.title}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"

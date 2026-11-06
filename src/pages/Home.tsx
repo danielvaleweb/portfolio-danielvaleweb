@@ -78,11 +78,27 @@ export default function Home() {
     }
   };
 
-  const logoItems = clients.map((client) => ({
-    src: client.logoUrl,
-    alt: client.name,
-    title: client.name,
-  }));
+  const logoItems = clients
+    .filter((client) => client && client.name?.trim())
+    .map((client) => {
+      const trimmedLogo = client.logoUrl?.trim();
+      if (trimmedLogo) {
+        return {
+          src: trimmedLogo,
+          alt: client.name,
+          title: client.name,
+        };
+      }
+      return {
+        node: (
+          <span className="font-bold text-neutral-800 tracking-wider text-xs md:text-sm uppercase px-4 py-2 bg-neutral-100 rounded-xl whitespace-nowrap select-none">
+            {client.name}
+          </span>
+        ),
+        title: client.name,
+        alt: client.name,
+      };
+    });
 
   return (
     <motion.div

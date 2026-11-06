@@ -2,11 +2,13 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
-import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader } from 'lucide-react';
+import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2 } from 'lucide-react';
 import { getClients } from '../utils/storage';
+import { parseDownloadUrl } from '../utils/downloadHelper';
 
 interface ProjectFormProps {
   project?: Project | null;
+  initialCategory?: string;
   onSave: (data: Partial<Project>) => void;
   onCancel: () => void;
   onDelete?: (project: Project) => void;
@@ -71,12 +73,12 @@ const t = {
   }
 };
 
-export default function ProjectForm({ project, onSave, onCancel, onDelete, onNavigateToClients, lang = "pt" }: ProjectFormProps) {
+export default function ProjectForm({ project, initialCategory, onSave, onCancel, onDelete, onNavigateToClients, lang = "pt" }: ProjectFormProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [formData, setFormData] = useState<Partial<Project>>(
     project || {
       title: '',
-      category: 'Imobiliário',
+      category: initialCategory || 'Imobiliário',
       thumbnail: '',
       videoUrl: '',
       description: '',
@@ -88,7 +90,21 @@ export default function ProjectForm({ project, onSave, onCancel, onDelete, onNav
   );
 
   useEffect(() => {
-    setClients(getClients());
+    const updateClients = () => {
+      const currentClients = getClients();
+      setClients(currentClients);
+      // If currently selected client was removed or is not in list, clear it
+      setFormData(prev => {
+        if (prev.clientId && !currentClients.some(c => c.id === prev.clientId)) {
+          return { ...prev, clientId: '' };
+        }
+        return prev;
+      });
+    };
+
+    updateClients();
+    window.addEventListener("clients-updated", updateClients);
+    return () => window.removeEventListener("clients-updated", updateClients);
   }, []);
 
   const [tagInput, setTagInput] = useState('');
@@ -329,6 +345,34 @@ export default function ProjectForm({ project, onSave, onCancel, onDelete, onNav
                        {uploading === 'downloadUrl' ? <><Loader size={16} className="animate-spin" /> {Math.round(uploadProgress)}%</> : <><Upload size={16} /> {t[lang].upload || 'Upload'}</>}
                      </button>
                    </div>
+                   {formData.downloadUrl && (() => {
+                     const info = parseDownloadUrl(formData.downloadUrl);
+                     if (info.type === 'google-drive-file') {
+                       return (
+                         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+                           <CheckCircle2 size={13} />
+                           Link do Google Drive detectado (será baixado diretamente sem abrir view.htm).
+                         </div>
+                       );
+                     }
+                     if (info.type === 'google-drive-folder') {
+                       return (
+                         <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium pt-1">
+                           <CheckCircle2 size={13} />
+                           Pasta do Google Drive detectada (o cliente será direcionado à pasta para baixar os arquivos).
+                         </div>
+                       );
+                     }
+                     if (info.type === 'dropbox') {
+                       return (
+                         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+                           <CheckCircle2 size={13} />
+                           Link do Dropbox detectado (configurado para download direto automático).
+                         </div>
+                       );
+                     }
+                     return null;
+                   })()}
                  </div>
                  
                  {project?.downloadCode && (

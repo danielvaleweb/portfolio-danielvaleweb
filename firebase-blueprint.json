@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "Cliente": {
+      "title": "Cliente",
+      "description": "Clientes e parceiros do estúdio",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identificador único do cliente"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome da empresa ou cliente"
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL do logotipo ou imagem do cliente"
+        }
+      },
+      "required": ["name"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Projetos arquitetônicos e audiovisuais",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID do projeto"
+        },
+        "title": {
+          "type": "string",
+          "description": "Título do projeto"
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição detalhada"
+        },
+        "category": {
+          "type": "string",
+          "description": "Categoria do projeto"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "ID do cliente associado"
+        }
+      },
+      "required": ["title", "category"]
+    }
+  },
+  "firestore": {
+    "/clientes/{clienteId}": {
+      "schema": "Cliente",
+      "description": "Coleção primária de clientes e parceiros adicionados no painel"
+    },
+    "/clients/{clientId}": {
+      "schema": "Cliente",
+      "description": "Coleção espelhada de clientes para compatibilidade"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Coleção de projetos do estúdio"
+    }
+  }
+}
