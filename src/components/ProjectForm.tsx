@@ -2,7 +2,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
-import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check } from 'lucide-react';
 import { getClients } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 
@@ -116,58 +116,151 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [galleryUrlInput, setGalleryUrlInput] = useState('');
 
+  // Estados para progresso e miniaturas individuais durante o upload da galeria
+  interface UploadingGalleryItem {
+    id: string;
+    name: string;
+    previewUrl: string;
+    progress: number;
+    status: 'uploading' | 'done' | 'error';
+    finalUrl?: string;
+  }
+  const [uploadingGalleryItems, setUploadingGalleryItems] = useState<UploadingGalleryItem[]>([]);
+
   const [uploading, setUploading] = useState<'thumbnail' | 'videoUrl' | 'downloadUrl' | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
-  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const updateItemProgress = (id: string, progress: number, status: 'uploading' | 'done' | 'error' = 'uploading', finalUrl?: string) => {
+    setUploadingGalleryItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return {
+          ...item,
+          progress: Math.min(Math.max(progress, 0), 100),
+          status,
+          finalUrl: finalUrl || item.finalUrl
+        };
+      }
+      return item;
+    }));
+  };
 
-    setUploadingGallery(true);
-    const newImages: string[] = [];
+  const uploadSingleGalleryFile = (item: UploadingGalleryItem, file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      let resolved = false;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file.type.startsWith('image/')) continue;
+      const fallbackWithFileReader = () => {
+        if (resolved) return;
+        resolved = true;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          // Anima suavemente o progresso para que a miniatura aumente a opacidade de forma fluida
+          let currentP = Math.max(item.progress, 20);
+          updateItemProgress(item.id, currentP, 'uploading');
+          const interval = setInterval(() => {
+            currentP += Math.floor(Math.random() * 20) + 15;
+            if (currentP >= 100) {
+              clearInterval(interval);
+              updateItemProgress(item.id, 100, 'done', dataUrl);
+              setTimeout(() => resolve(dataUrl), 200);
+            } else {
+              updateItemProgress(item.id, currentP, 'uploading');
+            }
+          }, 70);
+        };
+        reader.onerror = () => {
+          updateItemProgress(item.id, 100, 'error');
+          resolve('');
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const timeoutTimer = setTimeout(() => {
+        console.warn("Storage upload timeout, fallback to data URL");
+        fallbackWithFileReader();
+      }, 9000);
 
       try {
         const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const storageRef = ref(storage, `projects/gallery_${Date.now()}_${cleanName}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
-        const url = await new Promise<string>((resolve) => {
-          uploadTask.on(
-            'state_changed',
-            () => {},
-            () => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.readAsDataURL(file);
-            },
-            async () => {
-              try {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve(downloadURL);
-              } catch {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
-                reader.readAsDataURL(file);
-              }
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            if (snapshot.totalBytes > 0 && !resolved) {
+              const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+              updateItemProgress(item.id, Math.min(Math.max(pct, 15), 98), 'uploading');
             }
-          );
-        });
-
-        if (url) newImages.push(url);
+          },
+          (err) => {
+            clearTimeout(timeoutTimer);
+            console.warn("Storage upload error, fallback to data URL:", err);
+            fallbackWithFileReader();
+          },
+          async () => {
+            clearTimeout(timeoutTimer);
+            if (resolved) return;
+            resolved = true;
+            try {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              updateItemProgress(item.id, 100, 'done', downloadUrl);
+              resolve(downloadUrl);
+            } catch {
+              fallbackWithFileReader();
+            }
+          }
+        );
       } catch (err) {
-        console.warn("Erro no upload da foto da galeria:", err);
+        clearTimeout(timeoutTimer);
+        fallbackWithFileReader();
       }
-    }
+    });
+  };
 
-    setFormData(prev => ({
-      ...prev,
-      images: [...(prev.images || []), ...newImages]
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) return;
+
+    setUploadingGallery(true);
+
+    // 1. Cria imediatamente miniaturas locais com preview para renderizar na tela
+    const newItems: UploadingGalleryItem[] = validFiles.map((file, i) => ({
+      id: `gallery_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 7)}`,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      progress: 10,
+      status: 'uploading'
     }));
-    setUploadingGallery(false);
+
+    setUploadingGalleryItems(prev => [...prev, ...newItems]);
+
+    // 2. Executa os uploads paralelamente
+    await Promise.all(
+      newItems.map(async (item, index) => {
+        const file = validFiles[index];
+        const url = await uploadSingleGalleryFile(item, file);
+        if (url) {
+          setFormData(prev => ({
+            ...prev,
+            images: [...(prev.images || []), url]
+          }));
+        }
+      })
+    );
+
+    // 3. Mantém o feedback de 100% concluído por um instante antes de finalizar
+    setTimeout(() => {
+      newItems.forEach(item => {
+        try { URL.revokeObjectURL(item.previewUrl); } catch {}
+      });
+      setUploadingGalleryItems(prev => prev.filter(i => !newItems.some(ni => ni.id === i.id)));
+      setUploadingGallery(false);
+    }, 850);
+
     if (galleryInputRef.current) galleryInputRef.current.value = '';
   };
 
@@ -381,96 +474,179 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
           {/* Galeria de Fotos do Imóvel */}
           <div className="space-y-4 md:col-span-2 border border-gray-200 dark:border-[#1f1f1f] bg-gray-50 dark:bg-[#161616] rounded-2xl p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h4 className="text-gray-900 dark:text-white font-bold text-[15px] flex items-center gap-2">
-                  <ImageIcon size={16} className="text-[#FF6321]" />
-                  Fotos do Imóvel (Galeria)
-                </h4>
-                <p className="text-gray-500 dark:text-[#777] text-[13px]">
-                  As fotos cadastradas aparecerão em uma galeria logo abaixo do vídeo na página do imóvel.
-                </p>
-              </div>
-              <span className="text-xs font-mono font-bold px-3 py-1 bg-white dark:bg-[#202020] border border-gray-200 dark:border-[#333] rounded-full text-gray-700 dark:text-gray-300 self-start sm:self-auto">
-                {(formData.images || []).length} {(formData.images || []).length === 1 ? 'foto' : 'fotos'}
-              </span>
-            </div>
+            {(() => {
+              const totalUploading = uploadingGalleryItems.length;
+              const completedUploading = uploadingGalleryItems.filter(i => i.status === 'done').length;
+              const overallProgress = totalUploading > 0
+                ? Math.round(uploadingGalleryItems.reduce((acc, cur) => acc + cur.progress, 0) / totalUploading)
+                : 0;
+              const totalPhotosCount = (formData.images || []).length + totalUploading;
 
-            {/* Inputs para adicionar fotos */}
-            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-200 dark:border-[#222]">
-              <input
-                type="file"
-                ref={galleryInputRef}
-                multiple
-                accept="image/*"
-                className="hidden"
-                onChange={handleGalleryUpload}
-              />
-              <button
-                type="button"
-                onClick={() => galleryInputRef.current?.click()}
-                disabled={uploadingGallery}
-                className="bg-[#FF6321] hover:bg-[#e05419] text-white px-5 py-3 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
-              >
-                {uploadingGallery ? (
-                  <>
-                    <Loader size={15} className="animate-spin" />
-                    Enviando Fotos...
-                  </>
-                ) : (
-                  <>
-                    <Upload size={15} />
-                    + Adicionar Fotos do Computador
-                  </>
-                )}
-              </button>
-
-              <div className="flex-1 flex gap-2">
-                <input
-                  type="url"
-                  value={galleryUrlInput}
-                  onChange={(e) => setGalleryUrlInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddGalleryUrl();
-                    }
-                  }}
-                  className="flex-1 bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#262626] text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-gray-400"
-                  placeholder="Ou cole a URL de uma foto..."
-                />
-                <button
-                  type="button"
-                  onClick={handleAddGalleryUrl}
-                  disabled={!galleryUrlInput.trim()}
-                  className="bg-gray-200 dark:bg-[#252525] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-4 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Adicionar
-                </button>
-              </div>
-            </div>
-
-            {/* Grid de fotos cadastradas */}
-            {(formData.images || []).length > 0 && (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-3">
-                {formData.images!.map((imgUrl, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-[#222] border border-gray-300 dark:border-[#333] group">
-                    <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveGalleryImage(idx)}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
-                      title="Remover foto"
-                    >
-                      <X size={12} />
-                    </button>
-                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-mono">
-                      #{idx + 1}
+              return (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-gray-900 dark:text-white font-bold text-[15px] flex items-center gap-2">
+                        <ImageIcon size={16} className="text-[#FF6321]" />
+                        Fotos do Imóvel (Galeria)
+                      </h4>
+                      <p className="text-gray-500 dark:text-[#777] text-[13px]">
+                        As fotos cadastradas aparecerão em uma galeria logo abaixo do vídeo na página do imóvel.
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono font-bold px-3 py-1 bg-white dark:bg-[#202020] border border-gray-200 dark:border-[#333] rounded-full text-gray-700 dark:text-gray-300 self-start sm:self-auto">
+                      {totalPhotosCount} {totalPhotosCount === 1 ? 'foto' : 'fotos'}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* Inputs para adicionar fotos */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-200 dark:border-[#222]">
+                    <input
+                      type="file"
+                      ref={galleryInputRef}
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleGalleryUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={uploadingGallery}
+                      className="bg-[#FF6321] hover:bg-[#e05419] text-white px-5 py-3 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
+                    >
+                      {uploadingGallery ? (
+                        <>
+                          <Loader size={15} className="animate-spin" />
+                          Enviando {completedUploading}/{totalUploading} ({overallProgress}%)...
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={15} />
+                          + Adicionar Fotos do Computador
+                        </>
+                      )}
+                    </button>
+
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="url"
+                        value={galleryUrlInput}
+                        onChange={(e) => setGalleryUrlInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddGalleryUrl();
+                          }
+                        }}
+                        className="flex-1 bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#262626] text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-gray-400"
+                        placeholder="Ou cole a URL de uma foto..."
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddGalleryUrl}
+                        disabled={!galleryUrlInput.trim()}
+                        className="bg-gray-200 dark:bg-[#252525] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-4 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Banner de progresso global quando há uploads em andamento */}
+                  {totalUploading > 0 && (
+                    <div className="p-3.5 bg-orange-500/10 dark:bg-orange-950/20 border border-orange-500/20 rounded-xl space-y-2 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <Loader size={14} className="animate-spin text-[#FF6321]" />
+                          Enviando fotos: {completedUploading} de {totalUploading} concluída(s)
+                        </span>
+                        <span className="font-mono font-bold text-[#FF6321] text-sm">
+                          {overallProgress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-[#222] h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-[#FF6321] to-emerald-500 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${overallProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Grid de fotos: fotos já salvas + fotos que estão sendo enviadas com barra e opacidade dinâmica */}
+                  {((formData.images && formData.images.length > 0) || totalUploading > 0) && (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-3">
+                      {/* 1. Fotos já salvas no projeto */}
+                      {formData.images?.map((imgUrl, idx) => (
+                        <div key={`saved-${idx}`} className="relative aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-[#222] border border-gray-300 dark:border-[#333] group">
+                          <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(idx)}
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer z-10"
+                            title="Remover foto"
+                          >
+                            <X size={12} />
+                          </button>
+                          <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-mono z-10">
+                            #{idx + 1}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* 2. Miniaturas sendo carregadas com opacidade progressiva e barra de carregamento */}
+                      {uploadingGalleryItems.map((item) => (
+                        <div 
+                          key={item.id} 
+                          className="relative aspect-square rounded-xl overflow-hidden bg-neutral-900 border-2 border-[#FF6321]/50 shadow-md group transition-all"
+                        >
+                          {/* Miniatura com opacidade que aumenta conforme carrega */}
+                          <img 
+                            src={item.previewUrl} 
+                            alt={item.name} 
+                            className="w-full h-full object-cover"
+                            style={{ 
+                              opacity: 0.2 + (item.progress / 100) * 0.8,
+                              filter: item.progress < 100 ? `grayscale(${100 - item.progress}%)` : 'none',
+                              transition: 'opacity 0.25s ease-out, filter 0.25s ease-out'
+                            }}
+                          />
+
+                          {/* Overlay com percentual ou check */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 pointer-events-none">
+                            {item.status === 'uploading' ? (
+                              <div className="flex flex-col items-center justify-center gap-1 bg-black/75 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-white/10 shadow-lg">
+                                <Loader size={14} className="text-[#FF6321] animate-spin" />
+                                <span className="text-white text-[10px] font-mono font-bold">
+                                  {item.progress}%
+                                </span>
+                              </div>
+                            ) : item.status === 'done' ? (
+                              <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xl animate-in zoom-in duration-300">
+                                <Check size={18} className="stroke-[3]" />
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-red-300 bg-red-950/80 px-2 py-0.5 rounded font-bold border border-red-500/40">
+                                Falha
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Barra de carregamento no rodapé da miniatura */}
+                          <div className="absolute bottom-0 left-0 right-0 h-2 bg-black/80 overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-[#FF6321] via-orange-400 to-emerald-400 transition-all duration-200"
+                              style={{ width: `${item.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           <div className="space-y-2 md:col-span-2 border border-gray-200 dark:border-[#1f1f1f] bg-gray-50 dark:bg-[#161616] rounded-2xl p-6">
