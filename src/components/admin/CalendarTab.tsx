@@ -105,11 +105,10 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({ lang }) => {
             <button
               key={t}
               onClick={() => setFilterType(t)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold capitalize transition-colors cursor-pointer ${
-                filterType === t
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold capitalize transition-colors cursor-pointer ${filterType === t
                   ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
                   : 'bg-white dark:bg-[#151515] border border-gray-200 dark:border-[#262626] text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
-              }`}
+                }`}
             >
               {t === 'todos' ? 'Todos os Compromissos' : t === 'filmagem' ? 'Filmagens (Drone/Cam)' : t === 'entrega' ? 'Prazos de Entrega' : 'Reuniões'}
             </button>
@@ -261,11 +260,10 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({ lang }) => {
         {filteredEvents.map((evt) => (
           <div
             key={evt.id}
-            className={`bg-white dark:bg-[#111] border rounded-2xl p-5 flex flex-col justify-between transition-all hover:shadow-sm ${
-              evt.status === 'concluido'
+            className={`bg-white dark:bg-[#111] border rounded-2xl p-5 flex flex-col justify-between transition-all hover:shadow-sm ${evt.status === 'concluido'
                 ? 'opacity-60 border-gray-200 dark:border-[#1e1e1e]'
                 : 'border-gray-200 dark:border-[#222]'
-            }`}
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-2 mb-3">
@@ -275,11 +273,10 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({ lang }) => {
                   <button
                     onClick={() => handleToggleStatus(evt)}
                     title={evt.status === 'concluido' ? 'Marcar como pendente' : 'Marcar como concluído'}
-                    className={`p-1 rounded-md transition-colors cursor-pointer ${
-                      evt.status === 'concluido'
+                    className={`p-1 rounded-md transition-colors cursor-pointer ${evt.status === 'concluido'
                         ? 'text-emerald-500 hover:text-emerald-600'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     <CheckCircle2 size={15} className={evt.status === 'concluido' ? 'fill-emerald-500 text-white' : ''} />
                   </button>
