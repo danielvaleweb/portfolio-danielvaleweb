@@ -84,6 +84,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       description: '',
       tags: [],
       clientId: '',
+      images: project?.images || [],
       allowDownload: false,
       downloadUrl: '',
     }
@@ -111,9 +112,81 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [galleryUrlInput, setGalleryUrlInput] = useState('');
 
   const [uploading, setUploading] = useState<'thumbnail' | 'videoUrl' | 'downloadUrl' | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingGallery(true);
+    const newImages: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) continue;
+
+      try {
+        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storageRef = ref(storage, `projects/gallery_${Date.now()}_${cleanName}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        const url = await new Promise<string>((resolve) => {
+          uploadTask.on(
+            'state_changed',
+            () => {},
+            () => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.readAsDataURL(file);
+            },
+            async () => {
+              try {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(downloadURL);
+              } catch {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+              }
+            }
+          );
+        });
+
+        if (url) newImages.push(url);
+      } catch (err) {
+        console.warn("Erro no upload da foto da galeria:", err);
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      images: [...(prev.images || []), ...newImages]
+    }));
+    setUploadingGallery(false);
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+  };
+
+  const handleAddGalleryUrl = () => {
+    const trimmed = galleryUrlInput.trim();
+    if (!trimmed) return;
+    setFormData(prev => ({
+      ...prev,
+      images: [...(prev.images || []), trimmed]
+    }));
+    setGalleryUrlInput('');
+  };
+
+  const handleRemoveGalleryImage = (indexToRemove: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: (prev.images || []).filter((_, idx) => idx !== indexToRemove)
+    }));
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'thumbnail' | 'videoUrl' | 'downloadUrl') => {
     const file = e.target.files?.[0];
@@ -304,6 +377,100 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
                 {uploading === 'videoUrl' ? <><Loader size={16} className="animate-spin" /> {Math.round(uploadProgress)}%</> : <><Upload size={16} /> {t[lang].upload || 'Upload'}</>}
               </button>
             </div>
+          </div>
+
+          {/* Galeria de Fotos do Imóvel */}
+          <div className="space-y-4 md:col-span-2 border border-gray-200 dark:border-[#1f1f1f] bg-gray-50 dark:bg-[#161616] rounded-2xl p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-gray-900 dark:text-white font-bold text-[15px] flex items-center gap-2">
+                  <ImageIcon size={16} className="text-[#FF6321]" />
+                  Fotos do Imóvel (Galeria)
+                </h4>
+                <p className="text-gray-500 dark:text-[#777] text-[13px]">
+                  As fotos cadastradas aparecerão em uma galeria logo abaixo do vídeo na página do imóvel.
+                </p>
+              </div>
+              <span className="text-xs font-mono font-bold px-3 py-1 bg-white dark:bg-[#202020] border border-gray-200 dark:border-[#333] rounded-full text-gray-700 dark:text-gray-300 self-start sm:self-auto">
+                {(formData.images || []).length} {(formData.images || []).length === 1 ? 'foto' : 'fotos'}
+              </span>
+            </div>
+
+            {/* Inputs para adicionar fotos */}
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-200 dark:border-[#222]">
+              <input
+                type="file"
+                ref={galleryInputRef}
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={handleGalleryUpload}
+              />
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={uploadingGallery}
+                className="bg-[#FF6321] hover:bg-[#e05419] text-white px-5 py-3 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {uploadingGallery ? (
+                  <>
+                    <Loader size={15} className="animate-spin" />
+                    Enviando Fotos...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={15} />
+                    + Adicionar Fotos do Computador
+                  </>
+                )}
+              </button>
+
+              <div className="flex-1 flex gap-2">
+                <input
+                  type="url"
+                  value={galleryUrlInput}
+                  onChange={(e) => setGalleryUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddGalleryUrl();
+                    }
+                  }}
+                  className="flex-1 bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#262626] text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-gray-400"
+                  placeholder="Ou cole a URL de uma foto..."
+                />
+                <button
+                  type="button"
+                  onClick={handleAddGalleryUrl}
+                  disabled={!galleryUrlInput.trim()}
+                  className="bg-gray-200 dark:bg-[#252525] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-4 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Adicionar
+                </button>
+              </div>
+            </div>
+
+            {/* Grid de fotos cadastradas */}
+            {(formData.images || []).length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-3">
+                {formData.images!.map((imgUrl, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-[#222] border border-gray-300 dark:border-[#333] group">
+                    <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGalleryImage(idx)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+                      title="Remover foto"
+                    >
+                      <X size={12} />
+                    </button>
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-mono">
+                      #{idx + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2 md:col-span-2 border border-gray-200 dark:border-[#1f1f1f] bg-gray-50 dark:bg-[#161616] rounded-2xl p-6">

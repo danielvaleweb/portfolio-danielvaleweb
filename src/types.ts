@@ -24,6 +24,8 @@ export interface Client {
   name: string;
   email?: string;
   company?: string;
+  phone?: string;
+  instagram?: string;
   logoUrl: string; // Supported: normal URLs or inline SVG Data URIs / Base64
 }
 

@@ -1,21 +1,23 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Project, Evaluation } from "../types";
-import { getProjects, getEvaluations, updateProject, addNotification } from "../utils/storage";
+import { Project, Evaluation, Client } from "../types";
+import { getProjects, getEvaluations, updateProject, addNotification, getClients } from "../utils/storage";
 import { motion, AnimatePresence } from "motion/react";
 import CustomVideoPlayer from "../components/CustomVideoPlayer";
-import { ArrowLeft, Download, Lock, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
+import { ArrowLeft, Download, Lock, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle, User, Phone, Instagram, MessageCircle, Mail, Image as ImageIcon, Maximize2 } from "lucide-react";
 import { triggerDownload } from "../utils/downloadHelper";
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-    const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadCodeInput, setDownloadCodeInput] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [client, setClient] = useState<Client | null>(null);
+  const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -43,6 +45,20 @@ export default function ProjectDetail() {
       const linkedEval = allEvals.find((e) => e.projectId === foundProject.id);
       setEvaluation(linkedEval || null);
 
+      // Find client linked to this project
+      const allClients = getClients();
+      let linkedClient: Client | null = null;
+      if (foundProject.clientId) {
+        linkedClient = allClients.find((c) => c.id === foundProject.clientId) || null;
+      }
+      if (!linkedClient && linkedEval) {
+        linkedClient = allClients.find((c) => c.name.toLowerCase() === linkedEval.clientName.toLowerCase()) || null;
+      }
+      if (!linkedClient && allClients.length > 0) {
+        linkedClient = allClients.find(c => foundProject.title.toLowerCase().includes(c.name.toLowerCase())) || allClients[0];
+      }
+      setClient(linkedClient);
+
       // Find next project in the list for continuous reading/watching
       const currentIndex = allProjects.findIndex((p) => p.id === foundProject.id);
       const nextIndex = (currentIndex + 1) % allProjects.length;
@@ -53,6 +69,7 @@ export default function ProjectDetail() {
       }
     } else {
       setProject(null);
+      setClient(null);
     }
 
     // Reset audio player when project changes
@@ -62,6 +79,23 @@ export default function ProjectDetail() {
       audioPlayerRef.current = null;
     }
   }, [projectId]);
+
+  // Gallery keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedGalleryIndex !== null && project?.images && project.images.length > 0) {
+        if (e.key === "Escape") {
+          setSelectedGalleryIndex(null);
+        } else if (e.key === "ArrowRight") {
+          setSelectedGalleryIndex((prev) => (prev !== null ? (prev + 1) % project.images!.length : 0));
+        } else if (e.key === "ArrowLeft") {
+          setSelectedGalleryIndex((prev) => (prev !== null ? (prev - 1 + project.images!.length) % project.images!.length : 0));
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedGalleryIndex, project?.images]);
 
   useEffect(() => {
     if (project) {
@@ -546,16 +580,136 @@ export default function ProjectDetail() {
               ) : null}
             </motion.div>
 
-            
+            {/* Galeria de Fotos do Imóvel */}
+            {project.images && project.images.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="mt-8 pt-8 border-t border-neutral-200/80"
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-xl font-bold tracking-tight text-neutral-900 flex items-center gap-2">
+                      <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-neutral-900 text-white shadow-sm">
+                        <ImageIcon size={16} />
+                      </span>
+                      Galeria de Fotos do Imóvel
+                    </h3>
+                    <p className="text-xs text-neutral-500 font-light mt-1">
+                      Clique em qualquer foto para ampliar em alta resolução
+                    </p>
+                  </div>
+                  <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-white text-neutral-800 border border-neutral-200/80 shadow-xs">
+                    {project.images.length} {project.images.length === 1 ? 'foto' : 'fotos'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {project.images.map((imgUrl, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedGalleryIndex(idx)}
+                      className="group relative aspect-4/3 rounded-2xl overflow-hidden cursor-pointer bg-neutral-100 border border-neutral-200/70 shadow-sm hover:shadow-md transition-all duration-300"
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`${project.title} - Foto ${idx + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 transition-all p-2.5 rounded-full bg-white/95 text-neutral-900 shadow-md transform scale-90 group-hover:scale-100">
+                          <Maximize2 size={16} />
+                        </span>
+                      </div>
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono">
+                        {String(idx + 1).padStart(2, '0')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
 
           </div>
 
           {/* Right Column: Bio + Client Review (Lg: col-span-4) */}
           <div className="lg:col-span-4 space-y-6">
             
+            {/* Card do Corretor / Cliente Parceiro */}
+            {client && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.05 }}
+                className="bg-[#FDFDFD] rounded-3xl p-7 border border-neutral-200/70 shadow-sm relative overflow-hidden"
+              >
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200/80 flex-shrink-0 flex items-center justify-center shadow-inner">
+                    {client.logoUrl?.trim() ? (
+                      <img
+                        src={client.logoUrl.trim()}
+                        alt={client.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User size={30} className="text-neutral-400" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#FF6321] font-bold block mb-0.5">
+                      Corretor / Parceiro
+                    </span>
+                    <h4 className="font-bold text-neutral-900 text-base leading-tight truncate">
+                      {client.name}
+                    </h4>
+                    {client.company && (
+                      <p className="text-xs text-neutral-500 font-medium truncate mt-0.5">
+                        {client.company}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-            
-            {/* Video Biography / Description Card */}
+                {/* Ações de Contato: WhatsApp, Instagram e Email */}
+                <div className="space-y-2.5 pt-3 border-t border-neutral-100">
+                  {client.phone && (
+                    <a
+                      href={`https://wa.me/55${client.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi o imóvel "${project.title}" no portfólio do Daniel Vale e gostaria de mais informações.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white text-xs font-bold py-3 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <MessageCircle size={16} />
+                      WhatsApp: {client.phone}
+                    </a>
+                  )}
+
+                  {client.instagram && (
+                    <a
+                      href={client.instagram.startsWith('http') ? client.instagram : `https://instagram.com/${client.instagram.replace('@', '').trim()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-90 active:scale-[0.98] text-white text-xs font-bold py-3 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Instagram size={16} />
+                      Instagram: {client.instagram.startsWith('@') || client.instagram.includes('/') ? client.instagram : `@${client.instagram}`}
+                    </a>
+                  )}
+
+                  {client.email && (
+                    <a
+                      href={`mailto:${client.email}?subject=${encodeURIComponent(`Interesse no imóvel: ${project.title}`)}`}
+                      className="w-full bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-700 text-xs font-semibold py-2.5 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Mail size={14} className="text-neutral-500" />
+                      {client.email}
+                    </a>
+                  )}
+                </div>
+              </motion.div>
+            )}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -853,6 +1007,78 @@ export default function ProjectDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Lightbox Modal para Galeria de Fotos */}
+      {selectedGalleryIndex !== null && project.images && project.images[selectedGalleryIndex] && (
+        <div className="fixed inset-0 z-[500] bg-black/95 backdrop-blur-md flex flex-col justify-between p-4 md:p-8 animate-in fade-in duration-300">
+          {/* Header */}
+          <div className="flex items-center justify-between text-white z-10 max-w-7xl mx-auto w-full">
+            <div>
+              <h4 className="font-bold text-sm md:text-base text-white">{project.title}</h4>
+              <p className="text-xs text-neutral-400 font-mono">
+                Foto {selectedGalleryIndex + 1} de {project.images.length}
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedGalleryIndex(null)}
+              className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              title="Fechar (ESC)"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Imagem Central com navegação */}
+          <div className="relative flex-1 flex items-center justify-center my-4 max-w-6xl mx-auto w-full">
+            {project.images.length > 1 && (
+              <button
+                onClick={() => setSelectedGalleryIndex((prev) => (prev !== null ? (prev - 1 + project.images!.length) % project.images!.length : 0))}
+                className="absolute left-2 md:-left-12 z-20 w-12 h-12 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-lg"
+                title="Foto anterior"
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            <motion.img
+              key={selectedGalleryIndex}
+              src={project.images[selectedGalleryIndex]}
+              alt={`${project.title} - Foto ${selectedGalleryIndex + 1}`}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.25 }}
+              className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl"
+            />
+
+            {project.images.length > 1 && (
+              <button
+                onClick={() => setSelectedGalleryIndex((prev) => (prev !== null ? (prev + 1) % project.images!.length : 0))}
+                className="absolute right-2 md:-right-12 z-20 w-12 h-12 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-lg"
+                title="Próxima foto"
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Miniaturas no rodapé */}
+          {project.images.length > 1 && (
+            <div className="flex items-center justify-center gap-2 overflow-x-auto max-w-4xl mx-auto py-2 px-4 no-scrollbar">
+              {project.images.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedGalleryIndex(idx)}
+                  className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 transition-all border-2 ${
+                    selectedGalleryIndex === idx ? 'border-white scale-105' : 'border-transparent opacity-50 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

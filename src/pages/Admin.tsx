@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil } from 'lucide-react';
+import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram } from 'lucide-react';
 import { Project, Client } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
@@ -348,6 +348,8 @@ export default function Admin() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientCompany, setNewClientCompany] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientInstagram, setNewClientInstagram] = useState('');
   const [newClientLogo, setNewClientLogo] = useState('');
   const [clientPhotoFile, setClientPhotoFile] = useState<File | null>(null);
   const [clientPhotoPreview, setClientPhotoPreview] = useState<string | null>(null);
@@ -596,6 +598,8 @@ export default function Admin() {
     setNewClientName(client.name || '');
     setNewClientEmail(client.email || '');
     setNewClientCompany(client.company || '');
+    setNewClientPhone(client.phone || '');
+    setNewClientInstagram(client.instagram || '');
     setNewClientLogo(client.logoUrl || '');
     setClientPhotoPreview(client.logoUrl || null);
     setClientPhotoFile(null);
@@ -656,6 +660,8 @@ export default function Admin() {
           name: trimmedName,
           email: newClientEmail.trim() || undefined,
           company: newClientCompany.trim() || undefined,
+          phone: newClientPhone.trim() || undefined,
+          instagram: newClientInstagram.trim() || undefined,
           logoUrl: finalLogoUrl || ''
         });
       } else {
@@ -663,6 +669,8 @@ export default function Admin() {
           name: trimmedName,
           email: newClientEmail.trim() || undefined,
           company: newClientCompany.trim() || undefined,
+          phone: newClientPhone.trim() || undefined,
+          instagram: newClientInstagram.trim() || undefined,
           logoUrl: finalLogoUrl || ''
         });
       }
@@ -670,6 +678,8 @@ export default function Admin() {
       setNewClientName('');
       setNewClientEmail('');
       setNewClientCompany('');
+      setNewClientPhone('');
+      setNewClientInstagram('');
       setNewClientLogo('');
       setClientPhotoFile(null);
       setClientPhotoPreview(null);
@@ -1509,9 +1519,21 @@ service cloud.firestore {
                           </div>
                         )}
                         {client.email && (
-                          <p className="text-[12px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-2 flex items-center justify-center gap-1.5">
-                            <Mail size={12} className="text-gray-400 flex-shrink-0" />
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-1.5 flex items-center justify-center gap-1.5">
+                            <Mail size={11} className="text-gray-400 flex-shrink-0" />
                             <span className="truncate">{client.email}</span>
+                          </p>
+                        )}
+                        {client.phone && (
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-1 flex items-center justify-center gap-1.5">
+                            <Phone size={11} className="text-emerald-500 flex-shrink-0" />
+                            <span className="truncate">{client.phone}</span>
+                          </p>
+                        )}
+                        {client.instagram && (
+                          <p className="text-[11px] text-pink-500 text-center truncate w-full mt-1 flex items-center justify-center gap-1.5 font-medium">
+                            <Instagram size={11} className="flex-shrink-0" />
+                            <span className="truncate">{client.instagram.startsWith('@') || client.instagram.includes('/') ? client.instagram : `@${client.instagram}`}</span>
                           </p>
                         )}
                       </div>
@@ -1738,6 +1760,8 @@ service cloud.firestore {
                     setNewClientName('');
                     setNewClientEmail('');
                     setNewClientCompany('');
+                    setNewClientPhone('');
+                    setNewClientInstagram('');
                     setNewClientLogo('');
                     setClientPhotoFile(null);
                     setClientPhotoPreview(null);
@@ -1839,7 +1863,37 @@ service cloud.firestore {
                 />
               </div>
 
-              {/* 4. Enviar Foto do PC */}
+              {/* 4. Telefone / WhatsApp */}
+              <div>
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
+                  Telefone / WhatsApp
+                </label>
+                <input 
+                  type="tel" 
+                  value={newClientPhone}
+                  onChange={(e) => setNewClientPhone(e.target.value)}
+                  className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
+                  placeholder="Ex: (11) 99999-9999"
+                  disabled={isSavingClient}
+                />
+              </div>
+
+              {/* 5. Instagram */}
+              <div>
+                <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
+                  Instagram
+                </label>
+                <input 
+                  type="text" 
+                  value={newClientInstagram}
+                  onChange={(e) => setNewClientInstagram(e.target.value)}
+                  className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
+                  placeholder="Ex: @corretor ou perfil"
+                  disabled={isSavingClient}
+                />
+              </div>
+
+              {/* 6. Enviar Foto do PC */}
               <div>
                 <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-2 block flex items-center justify-between">
                   <span>Foto do Cliente / Logo</span>
@@ -1934,6 +1988,8 @@ service cloud.firestore {
                     setNewClientName('');
                     setNewClientEmail('');
                     setNewClientCompany('');
+                    setNewClientPhone('');
+                    setNewClientInstagram('');
                     setNewClientLogo('');
                     setClientPhotoFile(null);
                     setClientPhotoPreview(null);
