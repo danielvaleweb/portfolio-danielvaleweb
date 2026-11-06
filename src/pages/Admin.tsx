@@ -543,6 +543,7 @@ export default function Admin() {
     } else {
       addProject(data as Omit<Project, 'id'>);
     }
+    setRealProjects(getProjects());
     setIsCreating(false);
     setEditingProject(null);
   };

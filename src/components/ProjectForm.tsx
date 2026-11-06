@@ -3,7 +3,7 @@ import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
 import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check } from 'lucide-react';
-import { getClients } from '../utils/storage';
+import { getClients, updateProject } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
 
@@ -170,30 +170,21 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     }));
   };
 
-  const uploadSingleGalleryFile = async (item: UploadingGalleryItem, file: File): Promise<string> => {
-    // 1. Comprime a foto no cliente (reduz de ~8MB para ~100KB, evitando estouro de cota e upload lento)
-    let compressedDataUrl = '';
-    try {
-      compressedDataUrl = await compressImageToDataUrl(file, 1600, 0.82);
-    } catch {
-      // Se falhar a compressão, fallback
-    }
-
+  const uploadSingleGalleryFile = async (item: UploadingGalleryItem, file: File, permanentDataUrl: string): Promise<string> => {
     return new Promise((resolve) => {
       let resolved = false;
 
-      const fallbackWithCompressed = () => {
+      const finishWithPermanentUrl = () => {
         if (resolved) return;
         resolved = true;
-        const finalUrl = compressedDataUrl || item.previewUrl;
-        let currentP = Math.max(item.progress, 30);
+        let currentP = Math.max(item.progress, 40);
         updateItemProgress(item.id, currentP, 'uploading');
         const interval = setInterval(() => {
           currentP += Math.floor(Math.random() * 20) + 15;
           if (currentP >= 100) {
             clearInterval(interval);
-            updateItemProgress(item.id, 100, 'done', finalUrl);
-            setTimeout(() => resolve(finalUrl), 150);
+            updateItemProgress(item.id, 100, 'done', permanentDataUrl);
+            setTimeout(() => resolve(permanentDataUrl), 150);
           } else {
             updateItemProgress(item.id, currentP, 'uploading');
           }
@@ -201,16 +192,15 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       };
 
       const timeoutTimer = setTimeout(() => {
-        console.warn("Storage upload timeout, salvando imagem compactada localmente");
-        fallbackWithCompressed();
-      }, 7000);
+        finishWithPermanentUrl();
+      }, 5000);
 
       try {
         const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^/.]+$/, "") + ".jpg";
         const storageRef = ref(storage, `projects/gallery_${Date.now()}_${cleanName}`);
         
-        // Se temos o dataUrl comprimido, converte para Blob leve (~100KB); se não, usa o arquivo original
-        const uploadPayload = compressedDataUrl ? dataUrlToBlob(compressedDataUrl) : file;
+        // Se temos o dataUrl comprimido, converte para Blob leve (~80KB); se não, usa o arquivo original
+        const uploadPayload = permanentDataUrl ? dataUrlToBlob(permanentDataUrl) : file;
         const uploadTask = uploadBytesResumable(storageRef, uploadPayload);
 
         uploadTask.on(
@@ -218,13 +208,12 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           (snapshot) => {
             if (snapshot.totalBytes > 0 && !resolved) {
               const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-              updateItemProgress(item.id, Math.min(Math.max(pct, 20), 98), 'uploading');
+              updateItemProgress(item.id, Math.min(Math.max(pct, 25), 98), 'uploading');
             }
           },
-          (err) => {
+          () => {
             clearTimeout(timeoutTimer);
-            console.warn("Aviso upload Storage, utilizando versão compactada:", err);
-            fallbackWithCompressed();
+            finishWithPermanentUrl();
           },
           async () => {
             clearTimeout(timeoutTimer);
@@ -235,13 +224,13 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
               updateItemProgress(item.id, 100, 'done', downloadUrl);
               resolve(downloadUrl);
             } catch {
-              fallbackWithCompressed();
+              finishWithPermanentUrl();
             }
           }
         );
       } catch (err) {
         clearTimeout(timeoutTimer);
-        fallbackWithCompressed();
+        finishWithPermanentUrl();
       }
     });
   };
@@ -255,27 +244,34 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
     setUploadingGallery(true);
 
-    // 1. Cria imediatamente miniaturas locais com preview para renderizar na tela
-    const newItems: UploadingGalleryItem[] = validFiles.map((file, i) => ({
-      id: `gallery_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 7)}`,
-      name: file.name,
-      previewUrl: URL.createObjectURL(file),
-      progress: 10,
-      status: 'uploading'
-    }));
+    // 1. Gera imediatamente dataUrl comprimido permanente para cada imagem (nunca usa blob: temporário)
+    const itemsToUpload: { item: UploadingGalleryItem; file: File; dataUrl: string }[] = [];
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
+      const dataUrl = await compressImageToDataUrl(file, 1400, 0.78);
+      const item: UploadingGalleryItem = {
+        id: `gallery_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 7)}`,
+        name: file.name,
+        previewUrl: dataUrl,
+        progress: 30,
+        status: 'uploading',
+        finalUrl: dataUrl
+      };
+      itemsToUpload.push({ item, file, dataUrl });
+    }
 
-    setUploadingGalleryItems(prev => [...prev, ...newItems]);
+    setUploadingGalleryItems(prev => [...prev, ...itemsToUpload.map(x => x.item)]);
 
-    // 2. Executa os uploads paralelamente
+    // 2. Executa os uploads paralelamente e salva imediatamente no projeto
     await Promise.all(
-      newItems.map(async (item, index) => {
-        const file = validFiles[index];
-        const url = await uploadSingleGalleryFile(item, file);
+      itemsToUpload.map(async ({ item, file, dataUrl }) => {
+        const url = await uploadSingleGalleryFile(item, file, dataUrl);
         if (url) {
           setFormData(prev => {
             const nextImages = [...(prev.images || []), url];
             if (project?.id) {
               saveGalleryToIndexedDB(project.id, nextImages);
+              updateProject(project.id, { images: nextImages });
             }
             return {
               ...prev,
@@ -288,12 +284,9 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
     // 3. Mantém o feedback de 100% concluído por um instante antes de finalizar
     setTimeout(() => {
-      newItems.forEach(item => {
-        try { URL.revokeObjectURL(item.previewUrl); } catch {}
-      });
-      setUploadingGalleryItems(prev => prev.filter(i => !newItems.some(ni => ni.id === i.id)));
+      setUploadingGalleryItems(prev => prev.filter(i => !itemsToUpload.some(x => x.item.id === i.id)));
       setUploadingGallery(false);
-    }, 750);
+    }, 700);
 
     if (galleryInputRef.current) galleryInputRef.current.value = '';
   };
@@ -305,6 +298,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       const nextImages = [...(prev.images || []), trimmed];
       if (project?.id) {
         saveGalleryToIndexedDB(project.id, nextImages);
+        updateProject(project.id, { images: nextImages });
       }
       return {
         ...prev,
@@ -319,6 +313,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       const nextImages = (prev.images || []).filter((_, idx) => idx !== indexToRemove);
       if (project?.id) {
         saveGalleryToIndexedDB(project.id, nextImages);
+        updateProject(project.id, { images: nextImages });
       }
       return {
         ...prev,
@@ -367,6 +362,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     e.preventDefault();
     if (project?.id && formData.images && formData.images.length > 0) {
       saveGalleryToIndexedDB(project.id, formData.images);
+      updateProject(project.id, { images: formData.images });
     }
     onSave(formData);
   };

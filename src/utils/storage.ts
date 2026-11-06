@@ -368,17 +368,12 @@ export function saveProjects(projects: Project[]): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
     } catch (quotaError) {
-      console.warn("Aviso de cota do localStorage excedida. Armazenando metadados locais enquanto as fotos completas estão seguras no IndexedDB:", quotaError);
-      // Se estourar a cota de 5MB do navegador, salva versão compacta no localStorage enquanto IndexedDB mantém todas as fotos
-      const safeForLocalStorage = filtered.map(p => {
-        if (p.images && p.images.length > 0) {
-          return {
-            ...p,
-            images: p.images.slice(0, 5).map(img => img.length > 100000 ? img.substring(0, 100) : img)
-          };
-        }
-        return p;
-      });
+      console.warn("Aviso de cota do localStorage excedida. Armazenando no IndexedDB com backup de fotos no localStorage:", quotaError);
+      // Salva apenas as 4 primeiras fotos completas no localStorage caso a cota estoure, sem corromper URLs
+      const safeForLocalStorage = filtered.map(p => ({
+        ...p,
+        images: (p.images || []).slice(0, 4)
+      }));
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(safeForLocalStorage));
       } catch {}

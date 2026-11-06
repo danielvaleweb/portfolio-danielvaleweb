@@ -52,44 +52,70 @@ export async function getGalleryFromIndexedDB(projectId: string): Promise<string
 }
 
 // Client-side image compression to prevent exceeding browser localStorage or Firestore document limits
-export function compressImageToDataUrl(file: File, maxWidth = 1920, quality = 0.82): Promise<string> {
+export function compressImageToDataUrl(file: File, maxWidth = 1400, quality = 0.78): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (!result) {
+      const rawDataUrl = e.target?.result as string;
+      if (!rawDataUrl) {
         resolve('');
         return;
       }
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
 
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(result);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-
-          const compressed = canvas.toDataURL('image/jpeg', quality);
-          resolve(compressed);
-        } catch {
-          resolve(result);
+      let isDone = false;
+      const timeout = setTimeout(() => {
+        if (!isDone) {
+          isDone = true;
+          resolve(rawDataUrl);
         }
-      };
-      img.onerror = () => resolve(result);
-      img.src = result;
+      }, 1500);
+
+      try {
+        const img = new Image();
+        img.onload = () => {
+          if (isDone) return;
+          isDone = true;
+          clearTimeout(timeout);
+          try {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(rawDataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressed = canvas.toDataURL('image/jpeg', quality);
+            resolve(compressed);
+          } catch {
+            resolve(rawDataUrl);
+          }
+        };
+        img.onerror = () => {
+          if (!isDone) {
+            isDone = true;
+            clearTimeout(timeout);
+            resolve(rawDataUrl);
+          }
+        };
+        img.src = rawDataUrl;
+      } catch {
+        if (!isDone) {
+          isDone = true;
+          clearTimeout(timeout);
+          resolve(rawDataUrl);
+        }
+      }
     };
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);

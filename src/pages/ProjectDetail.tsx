@@ -307,6 +307,13 @@ export default function ProjectDetail() {
   const isEmbed = isYouTube || isDrive || isInstagram;
   const isVertical = project.videoUrl.includes('shorts/') || project.videoUrl.includes('instagram.com');
 
+  const validImages = (project.images || []).filter((img): img is string => 
+    typeof img === 'string' && 
+    img.trim().length > 0 && 
+    !img.startsWith('blob:') && 
+    (img.startsWith('http') || img.startsWith('data:image/'))
+  );
+
   const handlePlayPauseAudio = () => {
     if (!evaluation?.audioUrl) return;
 
@@ -605,7 +612,7 @@ export default function ProjectDetail() {
             </motion.div>
 
             {/* Galeria de Fotos do Imóvel */}
-            {project.images && project.images.length > 0 && (
+            {validImages.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -625,12 +632,12 @@ export default function ProjectDetail() {
                     </p>
                   </div>
                   <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-white text-neutral-800 border border-neutral-200/80 shadow-xs">
-                    {project.images.length} {project.images.length === 1 ? 'foto' : 'fotos'}
+                    {validImages.length} {validImages.length === 1 ? 'foto' : 'fotos'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {project.images.map((imgUrl, idx) => (
+                  {validImages.map((imgUrl, idx) => (
                     <div
                       key={idx}
                       onClick={() => setSelectedGalleryIndex(idx)}
@@ -1052,14 +1059,14 @@ export default function ProjectDetail() {
       </AnimatePresence>
 
       {/* Lightbox Modal para Galeria de Fotos */}
-      {selectedGalleryIndex !== null && project.images && project.images[selectedGalleryIndex] && (
+      {selectedGalleryIndex !== null && validImages[selectedGalleryIndex] && (
         <div className="fixed inset-0 z-[500] bg-black/95 backdrop-blur-md flex flex-col justify-between p-4 md:p-8 animate-in fade-in duration-300">
           {/* Header */}
           <div className="flex items-center justify-between text-white z-10 max-w-7xl mx-auto w-full">
             <div>
               <h4 className="font-bold text-sm md:text-base text-white">{project.title}</h4>
               <p className="text-xs text-neutral-400 font-mono">
-                Foto {selectedGalleryIndex + 1} de {project.images.length}
+                Foto {selectedGalleryIndex + 1} de {validImages.length}
               </p>
             </div>
             <button
@@ -1073,9 +1080,9 @@ export default function ProjectDetail() {
 
           {/* Imagem Central com navegação */}
           <div className="relative flex-1 flex items-center justify-center my-4 max-w-6xl mx-auto w-full">
-            {project.images.length > 1 && (
+            {validImages.length > 1 && (
               <button
-                onClick={() => setSelectedGalleryIndex((prev) => (prev !== null ? (prev - 1 + project.images!.length) % project.images!.length : 0))}
+                onClick={() => setSelectedGalleryIndex((prev) => (prev !== null ? (prev - 1 + validImages.length) % validImages.length : 0))}
                 className="absolute left-2 md:-left-12 z-20 w-12 h-12 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-lg"
                 title="Foto anterior"
               >
@@ -1085,7 +1092,7 @@ export default function ProjectDetail() {
 
             <motion.img
               key={selectedGalleryIndex}
-              src={project.images[selectedGalleryIndex]}
+              src={validImages[selectedGalleryIndex]}
               alt={`${project.title} - Foto ${selectedGalleryIndex + 1}`}
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1093,9 +1100,9 @@ export default function ProjectDetail() {
               className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl"
             />
 
-            {project.images.length > 1 && (
+            {validImages.length > 1 && (
               <button
-                onClick={() => setSelectedGalleryIndex((prev) => (prev !== null ? (prev + 1) % project.images!.length : 0))}
+                onClick={() => setSelectedGalleryIndex((prev) => (prev !== null ? (prev + 1) % validImages.length : 0))}
                 className="absolute right-2 md:-right-12 z-20 w-12 h-12 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-lg"
                 title="Próxima foto"
               >
@@ -1105,9 +1112,9 @@ export default function ProjectDetail() {
           </div>
 
           {/* Miniaturas no rodapé */}
-          {project.images.length > 1 && (
+          {validImages.length > 1 && (
             <div className="flex items-center justify-center gap-2 overflow-x-auto max-w-4xl mx-auto py-2 px-4 no-scrollbar">
-              {project.images.map((img, idx) => (
+              {validImages.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setSelectedGalleryIndex(idx)}
