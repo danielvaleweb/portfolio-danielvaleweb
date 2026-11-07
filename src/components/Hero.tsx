@@ -111,7 +111,7 @@ export default function Hero() {
 
               {/* Innovative Background: Liquid Sweep - slightly oversized */}
               <div className="absolute -inset-[1px] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+                <div className="absolute inset-0 bg-gradient-to-r from-red-800 via-red-600 to-red-400 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
               </div>
 
               {/* Shimmer Effect */}
@@ -169,9 +169,9 @@ export default function Hero() {
               {/* Base Background - Black */}
               <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
 
-              {/* Liquid Sweep - Vermelho para Laranja de baixo para cima */}
+              {/* Liquid Sweep - Gradiente Vermelho Escuro para Claro de baixo para cima */}
               <div className="absolute inset-[-1px] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+                <div className="absolute inset-0 bg-gradient-to-r from-red-800 via-red-600 to-red-400 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
               </div>
 
               {/* Shimmer Effect */}
