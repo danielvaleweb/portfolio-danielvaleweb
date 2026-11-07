@@ -1,4 +1,5 @@
 import { motion, useScroll, useTransform } from "motion/react";
+
 import { useEffect, useState } from "react";
 import { ArrowDown } from "lucide-react";
 
@@ -76,7 +77,7 @@ export default function Hero() {
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-            className="text-gray-900 md:text-gray-700 text-[15px] leading-relaxed font-semibold max-w-[450px]"
+            className="text-gray-900 md:text-gray-700 text-[15px] leading-relaxed font-semibold max-w-[440px] relative md:-top-24 lg:-top-90 md:left-12 lg:left-0"
           >
             Sou videomaker especializado no mercado imobiliário, focado em criar vídeos que elevam a percepção de valor e destacam cada detalhe do imóvel.
           </motion.p>
@@ -85,16 +86,25 @@ export default function Hero() {
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-            className="flex items-center justify-between gap-4"
+            className="flex items-center justify-between gap-4 relative md:left-12 lg:left-20"
           >
             {/* Botão Desktop: REC */}
             <motion.a
               href="https://wa.me/5532998288650"
               target="_blank"
               rel="noreferrer"
-              whileHover={{ scale: 1.05, y: -2 }}
+              animate={{
+                rotate: [0, -2.5, 2.5, -1.5, 1.5, 0],
+              }}
+              transition={{
+                duration: 0.8,
+                repeat: Infinity,
+                repeatDelay: 2.8,
+                ease: "easeInOut"
+              }}
+              whileHover={{ scale: 1.05, y: -2, rotate: 0 }}
               whileTap={{ scale: 0.95 }}
-              className="relative group hidden md:inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-white text-[14px] font-semibold shadow-[0_20px_40px_rgba(0,0,0,0.3)] overflow-hidden border-0 outline-none ring-0"
+              className="relative group hidden md:inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-white text-[14px] font-semibold shadow-[0_20px_40px_rgba(0,0,0,0.3)] overflow-hidden border-0 outline-none ring-0 cursor-pointer"
             >
               {/* Base Background - slightly oversized to prevent sub-pixel gaps */}
               <div className="absolute -inset-[1px] bg-black transition-colors duration-500 group-hover:bg-red-600" />
@@ -143,16 +153,30 @@ export default function Hero() {
               href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
               target="_blank"
               rel="noreferrer"
-              whileHover={{ scale: 1.04 }}
+              animate={{
+                rotate: [0, -2.5, 2.5, -1.5, 1.5, 0],
+              }}
+              transition={{
+                duration: 0.8,
+                repeat: Infinity,
+                repeatDelay: 2.8,
+                ease: "easeInOut"
+              }}
+              whileHover={{ scale: 1.04, rotate: 0 }}
               whileTap={{ scale: 0.96 }}
-              className="relative group inline-flex md:hidden items-center justify-center h-12 px-6 rounded-2xl text-white text-[14px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.25)] overflow-hidden border-0 outline-none ring-0"
+              className="relative group inline-flex md:hidden items-center justify-center h-12 px-6 rounded-2xl text-white text-[14px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.25)] overflow-hidden border-0 outline-none ring-0 cursor-pointer"
             >
               {/* Base Background - Black */}
               <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
 
-              {/* Liquid Sweep - WhatsApp Emerald */}
+              {/* Liquid Sweep - Vermelho para Laranja de baixo para cima */}
               <div className="absolute inset-[-1px] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-tr from-[#128C7E] via-[#25D366] to-[#25D366] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+                <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+              </div>
+
+              {/* Shimmer Effect */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
               </div>
 
               {/* Text */}

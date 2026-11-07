@@ -8,9 +8,30 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isReachedImobiliario, setIsReachedImobiliario] = useState(false);
   const [isDarkSection, setIsDarkSection] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Verifica se o scroll atingiu a seção Imobiliário
+  const checkImobiliarioPosition = () => {
+    if (window.location.pathname === "/") {
+      const imobSection = document.getElementById("secao-imobiliario") || document.getElementById("trabalhos");
+      if (imobSection) {
+        const rect = imobSection.getBoundingClientRect();
+        // Ativa quando a seção Imobiliário atinge o topo/navbar (rect.top <= 120px)
+        setIsReachedImobiliario(rect.top <= 120);
+      } else {
+        setIsReachedImobiliario(window.scrollY > 450);
+      }
+    } else {
+      setIsReachedImobiliario(true);
+    }
+  };
+
+  useEffect(() => {
+    checkImobiliarioPosition();
+  }, [location.pathname]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -20,6 +41,7 @@ export default function Navbar() {
     const handleScroll = () => {
       const currentScroll = window.scrollY;
       setIsScrolled(currentScroll > 50);
+      checkImobiliarioPosition();
 
       // Check if we are over a dark section
       const darkSectionIds: string[] = [];
@@ -115,7 +137,7 @@ export default function Navbar() {
           }}
           className={`text-[20px] font-bold tracking-tight ${textColor} flex items-center gap-1 transition-colors duration-500`}
         >
-          Daniel Vale<span className="text-[#FF6321]">.</span>
+          Daniel Vale<span className="text-red-600">.</span>
         </a>
       </div>
 
@@ -153,39 +175,72 @@ export default function Navbar() {
           href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
           target="_blank"
           rel="noreferrer"
-          whileHover={{ scale: 1.05 }}
+          animate={{
+            rotate: [0, -2, 2, -1.5, 1.5, 0],
+          }}
+          transition={{
+            duration: 0.8,
+            repeat: Infinity,
+            repeatDelay: 3,
+            ease: "easeInOut"
+          }}
+          whileHover={{ scale: 1.05, rotate: 0 }}
           whileTap={{ scale: 0.95 }}
-          className={`relative group hidden md:inline-flex items-center justify-center h-10 px-5 rounded-xl text-white text-[13px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all duration-500 whitespace-nowrap ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
+          className={`relative group hidden md:inline-flex items-center justify-center h-10 px-5 rounded-xl text-white text-[13px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all duration-500 whitespace-nowrap cursor-pointer ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
         >
           {/* Base Background (Black) */}
           <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
 
-          {/* Hover Gradient Sweep (WhatsApp Emerald) */}
+          {/* Hover Gradient Sweep (Liquid Vermelho-Laranja de baixo para cima) */}
           <div className="absolute inset-[-1px] overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#128C7E] via-[#25D366] to-[#25D366] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+          </div>
+
+          {/* Shimmer Effect */}
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
           </div>
 
           {/* Text */}
           <span className="relative z-10 font-medium">Solicitar orçamento</span>
         </motion.a>
 
-        {/* Botão Mobile: no topo fica no Hero (substituindo o REC) e vai para a navbar SOMENTE quando rolar */}
+        {/* Botão Mobile: no topo fica no Hero (substituindo o REC) e vai para a navbar SOMENTE quando chegar na sessão de imobiliário */}
         <AnimatePresence>
-          {(isScrolled || location.pathname !== "/") && (
+          {(location.pathname === "/" ? isReachedImobiliario : true) && (
             <motion.a
               key="solicitar-orcamento-mobile"
               initial={{ opacity: 0, scale: 0.85, x: 8 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                x: 0,
+                rotate: [0, -2, 2, -1.5, 1.5, 0],
+              }}
               exit={{ opacity: 0, scale: 0.85, x: 8 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
+              transition={{
+                rotate: {
+                  duration: 0.8,
+                  repeat: Infinity,
+                  repeatDelay: 3,
+                  ease: "easeInOut"
+                },
+                default: { duration: 0.25, ease: "easeOut" }
+              }}
               href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
               target="_blank"
               rel="noreferrer"
+              whileHover={{ rotate: 0 }}
               whileTap={{ scale: 0.95 }}
-              className={`relative group inline-flex md:hidden items-center justify-center h-10 px-3.5 rounded-xl text-white text-[12px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] whitespace-nowrap ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
+              className={`relative group inline-flex md:hidden items-center justify-center h-10 px-3.5 rounded-xl text-white text-[12px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] whitespace-nowrap cursor-pointer ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
             >
               {/* Base Background (Black) */}
-              <div className="absolute inset-0 bg-black" />
+              <div className="absolute inset-0 bg-black transition-opacity duration-500 group-hover:opacity-0" />
+
+              {/* Liquid Sweep - Vermelho para Laranja de baixo para cima */}
+              <div className="absolute inset-[-1px] overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+              </div>
 
               {/* Text */}
               <span className="relative z-10 font-medium">Solicitar orçamento</span>
@@ -230,7 +285,7 @@ export default function Navbar() {
               <div>
                 <div className="flex items-center justify-between pb-6 border-b border-gray-100">
                   <span className="text-[20px] font-bold tracking-tight text-black">
-                    Daniel Vale<span className="text-[#FF6321]">.</span>
+                    Daniel Vale<span className="text-red-600">.</span>
                   </span>
                   <button
                     type="button"

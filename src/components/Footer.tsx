@@ -5,7 +5,7 @@ import { Zap } from "lucide-react";
 export default function Footer() {
   const currentYear = new Date().getFullYear();
   const location = useLocation();
-  
+
   const handleLogoClick = (e: React.MouseEvent) => {
     if (location.pathname === "/") {
       e.preventDefault();
@@ -18,12 +18,12 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4">
         {/* Logo */}
         <div className="md:w-1/4 flex justify-center md:justify-start">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             onClick={handleLogoClick}
             className="text-[22px] font-bold tracking-tight text-white flex items-center gap-0.5"
           >
-            Daniel Vale<span className="text-[#FF6321]">.</span>
+            Daniel Vale<span className="text-red-600">.</span>
           </Link>
         </div>
 
@@ -41,10 +41,10 @@ export default function Footer() {
         {/* Copyright & Developer */}
         <div className="md:w-1/4 flex flex-col items-center md:items-end gap-2 text-[13px] text-white/30 font-light text-center md:text-right">
           <span>© {currentYear} Daniel Vale. Todos os direitos reservados.</span>
-          <a 
-            href="https://anima-system.vercel.app/" 
-            target="_blank" 
-            rel="noreferrer" 
+          <a
+            href="https://anima-system.vercel.app/"
+            target="_blank"
+            rel="noreferrer"
             className="flex items-center gap-1.5 text-white/40 hover:text-white transition-all duration-300 group"
           >
             <span className="text-xs">Desenvolvido por</span>

@@ -100,11 +100,11 @@ export default function AdminLogin({ onAuthenticated }: AdminLoginProps) {
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5 shadow-inner">
-            <Lock size={26} className="text-[#FF6321]" />
+            <Lock size={26} className="text-red-600" />
           </div>
 
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-1.5">
-            Daniel Vale<span className="text-[#FF6321]">.</span>
+            Daniel Vale<span className="text-red-600">.</span>
           </h2>
           <span className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mt-1">
             Painel Administrativo

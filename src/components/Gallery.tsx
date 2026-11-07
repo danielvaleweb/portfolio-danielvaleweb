@@ -41,7 +41,7 @@ function BlurImage({ project }: { project: Project }) {
   );
 }
 
-function VideoSection({ title, subtitle, projects }: { title: string; subtitle: string; projects: Project[] }) {
+function VideoSection({ title, subtitle, projects, id }: { title: string; subtitle: string; projects: Project[]; id?: string }) {
   const navigate = useNavigate();
   const [visibleCount, setVisibleCount] = useState(4); // Exibir de 4 em 4
 
@@ -53,7 +53,7 @@ function VideoSection({ title, subtitle, projects }: { title: string; subtitle: 
   };
 
   return (
-    <div className="w-full mb-16">
+    <div id={id} className="w-full mb-8 md:mb-12 scroll-mt-24">
       <div className="w-full px-6 md:px-12 mb-6 text-left">
         <h2 className="text-3xl md:text-4xl font-bold text-black tracking-tight">{title}</h2>
         <p className="text-gray-500 mt-2">{subtitle}</p>
@@ -216,12 +216,14 @@ export default function Gallery() {
   }
 
   return (
-    <section id="trabalhos" className="pb-20 scroll-mt-24 flex flex-col items-center w-full">
-      {visibleCategories.map(category => {
+    <section id="trabalhos" className="pb-2 md:pb-6 scroll-mt-24 flex flex-col items-center w-full">
+      {visibleCategories.map((category, index) => {
         const projects = getProjectsForCategory(category);
+        const isImobiliario = category.name.toLowerCase().includes("imobili") || category.id === "imobiliario" || index === 0;
         return (
           <VideoSection
             key={category.id}
+            id={isImobiliario ? "secao-imobiliario" : `secao-${category.id}`}
             title={category.title || category.name}
             subtitle={category.subtitle}
             projects={projects}
