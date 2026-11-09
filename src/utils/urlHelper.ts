@@ -20,3 +20,4 @@ export function getPublicOrigin(): string {
   }
   return 'https://www.danielvale.com.br';
 }
+
