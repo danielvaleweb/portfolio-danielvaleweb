@@ -1,15 +1,30 @@
 {
   "rewrites": [
     {
-      "source": "/projeto/:id",
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/projeto/:id*",
       "has": [
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(WhatsApp|whatsapp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|LinkedInBot).*"
+          "value": ".*(WhatsApp|whatsapp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|LinkedInBot|Slackbot|Discordbot|Pinterest|Googlebot).*"
         }
       ],
       "destination": "/api/preview?id=:id"
+    },
+    {
+      "source": "/avaliar/:id*",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(WhatsApp|whatsapp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|LinkedInBot|Slackbot|Discordbot|Pinterest|Googlebot).*"
+        }
+      ],
+      "destination": "/api/preview?id=:id&isEval=1"
     },
     {
       "source": "/(.*)",
@@ -17,4 +32,3 @@
     }
   ]
 }
-
