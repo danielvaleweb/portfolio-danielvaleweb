@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Project, Client } from "../types";
 import { updateProject, getClients } from "../utils/storage";
+import { getPublicOrigin } from "../utils/urlHelper";
 import { 
   X, 
   Send, 
@@ -58,8 +59,8 @@ export default function ClientDeliveryModal({
   const clientName = linkedClient?.name || "";
   const clientPhone = linkedClient?.phone || "";
 
-  // Base and specific URLs
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  // Base and specific URLs (usa sempre o domínio oficial público para que WhatsApp e clientes acessem de qualquer lugar)
+  const origin = getPublicOrigin();
   const projectDeliveryUrl = `${origin}/projeto/${project.id}?unlock=${downloadCode}`;
   const evaluationUrl = `${origin}/avaliar/${project.id}`;
 
@@ -218,50 +219,13 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
   };
 
   const handleSendWhatsApp = async () => {
-    let blob: Blob | null = null;
+    // Garante que o texto completo da mensagem esteja copiado para a área de transferência
     try {
-      blob = await getThumbnailBlob();
+      await navigator.clipboard.writeText(messageText);
+      showToast("Mensagem copiada! Abrindo WhatsApp...");
     } catch {}
 
-    // 1. No Mobile: usa a Web Share API nativa com arquivo anexado!
-    // Abre o WhatsApp diretamente com a FOTO e o TEXTO como legenda (exatamente como na print)!
-    if (blob && typeof navigator !== "undefined" && "canShare" in navigator) {
-      try {
-        const imageFile = new File([blob], `${project.title.replace(/[^a-zA-Z0-9]/g, "_")}_capa.png`, { type: "image/png" });
-        if (navigator.canShare({ files: [imageFile] })) {
-          await navigator.share({
-            files: [imageFile],
-            title: project.title,
-            text: messageText,
-          });
-          showToast("Mensagem e foto compartilhadas!");
-          return;
-        }
-      } catch (err: any) {
-        if (err.name === "AbortError") return;
-        console.warn("navigator.share fallback to wa.me:", err);
-      }
-    }
-
-    // 2. No Desktop: Copia a foto + texto para o clipboard para o usuário colar direto no WhatsApp Web
-    if (blob && navigator.clipboard && "write" in navigator.clipboard && typeof ClipboardItem !== "undefined") {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            "image/png": blob,
-            "text/plain": new Blob([messageText], { type: "text/plain" })
-          })
-        ]);
-        showToast("Foto e texto copiados! Cole com Ctrl+V no WhatsApp.");
-      } catch {
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-          showToast("Foto copiada! Cole com Ctrl+V no WhatsApp.");
-        } catch {}
-      }
-    }
-
-    // Abre a conversa do WhatsApp
+    // Abre a conversa do WhatsApp com a mensagem pronta
     const text = encodeURIComponent(messageText);
     let cleanPhone = clientPhone.replace(/\D/g, "");
     if (cleanPhone) {

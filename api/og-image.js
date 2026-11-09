@@ -55,3 +55,4 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'public, max-age=3600');
   return res.redirect(302, targetUrl);
 }
+

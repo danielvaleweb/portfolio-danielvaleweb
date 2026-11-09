@@ -8,6 +8,7 @@ import { storage, auth } from "../firebase";
 import { signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import AdminLogin, { isAuthorizedAdminEmail } from '../components/AdminLogin';
 import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore, getNotes, addNote, deleteNote } from '../utils/storage';
+import { getPublicOrigin } from '../utils/urlHelper';
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
 import ProjectNoteModal from '../components/ProjectNoteModal';
@@ -231,7 +232,7 @@ const Card = React.memo(({
       code = Math.random().toString(36).substring(2, 8).toUpperCase();
       updateProject(project.id, { downloadCode: code, allowDownload: true });
     }
-    const url = `${window.location.origin}/projeto/${project.id}?unlock=${code}`;
+    const url = `${getPublicOrigin()}/projeto/${project.id}?unlock=${code}`;
     const ok = await copyToClipboard(url);
     if (ok) {
       setCopiedLink(true);
@@ -2492,10 +2493,10 @@ service cloud.firestore {
             {actionModal === 'review' ? (
               <div className="space-y-4">
                 <div className="bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] rounded-xl p-3 flex items-center justify-between">
-                  <span className="text-[13px] text-gray-600 dark:text-[#aaa] truncate flex-1">{window.location.origin}/avaliar/{actionProject.id}</span>
+                  <span className="text-[13px] text-gray-600 dark:text-[#aaa] truncate flex-1">{getPublicOrigin()}/avaliar/{actionProject.id}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(window.location.origin + '/avaliar/' + actionProject.id);
+                      navigator.clipboard.writeText(getPublicOrigin() + '/avaliar/' + actionProject.id);
                       alert('Link copiado!');
                     }}
                     className="ml-3 text-gray-500 hover:text-black dark:hover:text-white"
@@ -2506,7 +2507,7 @@ service cloud.firestore {
                 </div>
 
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent('Olá! Segue o link para avaliação do projeto "' + actionProject.title + '": ' + window.location.origin + '/avaliar/' + actionProject.id)}`}
+                  href={`https://wa.me/?text=${encodeURIComponent('Olá! Segue o link para avaliação do projeto "' + actionProject.title + '": ' + getPublicOrigin() + '/avaliar/' + actionProject.id)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full bg-gray-200 hover:bg-gray-300 text-black dark:bg-[#222] dark:hover:bg-[#333] dark:text-white py-3 rounded-full text-[14px] font-bold transition-colors flex items-center justify-center gap-2"
