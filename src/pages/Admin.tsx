@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, ArrowLeft, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram, Eye, EyeOff, Send } from 'lucide-react';
+import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, ArrowLeft, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram, Eye, EyeOff, Send, DollarSign } from 'lucide-react';
 import { Project, Client, Note, Notification } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, auth } from "../firebase";
@@ -25,6 +25,7 @@ import { SettingsTab } from '../components/admin/SettingsTab';
 import { LearnTab } from '../components/admin/LearnTab';
 import { HelpCenterTab } from '../components/admin/HelpCenterTab';
 import { SupportTab } from '../components/admin/SupportTab';
+import { FinancialTab } from '../components/admin/FinancialTab';
 
 function useOnClickOutside(ref: any, handler: () => void) {
   useEffect(() => {
@@ -58,6 +59,7 @@ const translations = {
     noProjects: 'No projects available to display.',
     loadMore: 'Load More',
     clients: 'Clients',
+    financial: 'Financial',
     language: 'English Language',
     ptLanguage: 'Portuguese (Brazil)',
     newProject: 'New Project',
@@ -103,6 +105,7 @@ const translations = {
     noProjects: 'Nenhum projeto disponível.',
     loadMore: 'Carregar Mais',
     clients: 'Clientes',
+    financial: 'Financeiro',
     language: 'Inglês',
     ptLanguage: 'Português (Brasil)',
     newProject: 'Novo Projeto',
@@ -137,7 +140,7 @@ const translations = {
 };
 
 const iconMap: Record<string, any> = {
-  LayoutGrid, Folder, FileText, Cloud, MessageCircle, Mail, Users, Calendar, Info, Briefcase, MessageSquare, Settings, Globe, Moon, Sun, BookOpen, HelpCircle, Headphones
+  LayoutGrid, Folder, FileText, Cloud, MessageCircle, Mail, Users, Calendar, Info, Briefcase, MessageSquare, Settings, Globe, Moon, Sun, BookOpen, HelpCircle, Headphones, DollarSign
 };
 
 const NavItem = ({ icon: Icon, label, active = false, disabled = false, onClick, collapsed = false, draggable, onDragStart, onDragOver, onDrop }: { icon: any, label: string, active?: boolean, disabled?: boolean, onClick?: () => void, collapsed?: boolean, draggable?: boolean, onDragStart?: any, onDragOver?: any, onDrop?: any, key?: React.Key }) => (
@@ -268,18 +271,17 @@ const Card = React.memo(({
           <p className="text-[13px] text-gray-500 dark:text-[#777] font-medium">{project.category}</p>
         </div>
         <div className="flex items-center gap-2.5 controls">
-          {/* Copiar Link do Projeto (Corrente) */}
+          {/* Corrente: Copiar link de entrega do cliente (desbloqueado) */}
           <button
             type="button"
             onClick={handleCopyLink}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${copiedLink
-                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30'
-                : 'text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] border border-transparent'
+            className={`p-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border border-transparent ${copiedLink
+                ? 'text-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40'
+                : 'text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222]'
               }`}
-            title={copiedLink ? "Link copiado!" : "Copiar link do projeto"}
+            title={copiedLink ? "Link de entrega copiado!" : "Copiar link de entrega do cliente"}
           >
-            {copiedLink ? <Check size={13} className="text-emerald-500" strokeWidth={2.5} /> : <Link size={13} strokeWidth={2.5} />}
-            <span className="text-[11px] font-medium">{copiedLink ? 'Copiado!' : 'Link'}</span>
+            {copiedLink ? <Check size={14} className="text-emerald-500" strokeWidth={2.5} /> : <Link size={14} strokeWidth={2.5} />}
           </button>
 
           {/* Adicionar / Ver Notas (Papel) */}
@@ -298,20 +300,6 @@ const Card = React.memo(({
             ) : (
               <span className="text-[11px] font-medium">Nota</span>
             )}
-          </button>
-
-          {/* Gerar Link para Cliente (Entrega com Link Desbloqueado + Avaliação) */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onActionClick?.('clientDelivery', project);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all cursor-pointer shadow-xs"
-            title="Gerar Link de Entrega para o Cliente (desbloqueado)"
-          >
-            <Link size={12} strokeWidth={2.5} />
-            <span className="text-[11px] font-bold">Entrega</span>
           </button>
 
           <div className="h-4 w-px bg-gray-200 dark:bg-[#333] mx-1" />
@@ -424,11 +412,11 @@ const Card = React.memo(({
   return (
     <div
       onClick={handleCardClick}
-      className={`${!isVisible ? 'hidden' : ''} bg-white dark:bg-[#161616] border ${isSelected ? 'border-black dark:border-white' : 'border-gray-200 dark:border-[#222]'} rounded-[20px] p-3 flex flex-col relative hover:bg-gray-50 dark:hover:bg-[#1c1c1c] transition-colors cursor-pointer group shadow-sm`}
+      className={`${!isVisible ? 'hidden' : ''} bg-white dark:bg-[#161616] border ${isSelected ? 'border-black dark:border-white' : 'border-gray-200 dark:border-[#222]'} rounded-[18px] p-2 sm:p-2.5 flex flex-col relative hover:bg-gray-50 dark:hover:bg-[#1c1c1c] transition-colors cursor-pointer group shadow-sm`}
     >
 
       {/* Thumbnail area */}
-      <div className="w-full aspect-video mb-2.5 rounded-xl overflow-hidden bg-[#222] relative">
+      <div className="w-full aspect-video mb-2 rounded-lg overflow-hidden bg-[#222] relative">
         <img
           src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
           alt={project.title}
@@ -437,62 +425,56 @@ const Card = React.memo(({
           decoding="async"
         />
         {isFavorite && (
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-amber-400/40 text-amber-400 text-[10px] font-bold flex items-center gap-1 shadow-md">
-            <Star size={10} className="fill-amber-400 text-amber-400" />
+          <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-amber-400/40 text-amber-400 text-[9px] font-bold flex items-center gap-1 shadow-md">
+            <Star size={9} className="fill-amber-400 text-amber-400" />
             <span>Fixado</span>
           </div>
         )}
       </div>
 
       {/* Content Area */}
-      <div className="flex flex-col px-1">
-        <h3 className="text-[13px] font-bold text-gray-900 dark:text-white mb-2 leading-tight truncate">{project.title}</h3>
+      <div className="flex flex-col px-0.5">
+        <h3 className="text-[12px] sm:text-[13px] font-bold text-gray-900 dark:text-white mb-1.5 leading-snug truncate">{project.title}</h3>
 
         {/* Labels/Tags Row */}
-        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-          <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#1e293b]/60 dark:text-[#60a5fa] dark:border-[#334155] text-[10px] font-semibold transition-colors">
+        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#1e293b]/60 dark:text-[#60a5fa] dark:border-[#334155] text-[9.5px] font-semibold transition-colors">
             {project.category || 'Categoria'}
           </span>
           {isFavorite && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 text-[10px] font-bold transition-colors flex items-center gap-1 shadow-xs">
-              <Star size={10} className="fill-amber-500 text-amber-500" /> Destaque
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 text-[9px] font-bold transition-colors flex items-center gap-1 shadow-xs">
+              <Star size={9} className="fill-amber-500 text-amber-500" /> Destaque
             </span>
           )}
           {isUnlisted ? (
-            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-500/30 text-[10px] font-semibold transition-colors flex items-center gap-1">
-              <EyeOff size={10} /> Não listado
+            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-500/30 text-[9.5px] font-semibold transition-colors flex items-center gap-1">
+              <EyeOff size={9} /> Não listado
             </span>
           ) : (
-            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-[#14532d]/60 dark:text-[#4ade80] dark:border-[#166534] text-[10px] font-semibold transition-colors">
+            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-[#14532d]/60 dark:text-[#4ade80] dark:border-[#166534] text-[9.5px] font-semibold transition-colors">
               {'Done'}
             </span>
           )}
         </div>
 
         {/* Bottom Bar Icons */}
-        <div className="pt-2.5 border-t border-gray-100 dark:border-[#222] flex items-center justify-between controls">
+        <div className="pt-2 border-t border-gray-100 dark:border-[#222] flex items-center justify-between controls">
           {/* Left actions: Corrente (copiar link) e Papel (adicionar nota). Ícone de check removido conforme solicitado */}
-          <div className="flex items-center gap-1.5 text-gray-500 dark:text-[#888]">
-            {/* Corrente: Copiar link do projeto */}
+          <div className="flex items-center gap-0.5 text-gray-500 dark:text-[#888]">
+            {/* Corrente: Copiar link de entrega do cliente (desbloqueado) */}
             <button
               type="button"
               onClick={handleCopyLink}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${copiedLink
-                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30'
-                  : 'hover:bg-gray-100 dark:hover:bg-[#222] hover:text-black dark:hover:text-white border border-transparent'
+              className={`p-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border border-transparent ${copiedLink
+                  ? 'text-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40'
+                  : 'hover:bg-gray-100 dark:hover:bg-[#222] hover:text-black dark:hover:text-white'
                 }`}
-              title={copiedLink ? "Link copiado!" : "Copiar link do projeto"}
+              title={copiedLink ? "Link de entrega copiado!" : "Copiar link de entrega do cliente"}
             >
               {copiedLink ? (
-                <>
-                  <Check size={13} className="text-emerald-500" strokeWidth={2.5} />
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Copiado!</span>
-                </>
+                <Check size={13} className="text-emerald-500" strokeWidth={2.5} />
               ) : (
-                <>
-                  <Link size={13} strokeWidth={2.5} />
-                  <span className="text-[11px] font-medium hidden xs:inline">Link</span>
-                </>
+                <Link size={13} strokeWidth={2.5} />
               )}
             </button>
 
@@ -503,34 +485,20 @@ const Card = React.memo(({
                 e.stopPropagation();
                 onAddNote?.(project);
               }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold hover:bg-gray-100 dark:hover:bg-[#222] hover:text-black dark:hover:text-white transition-all cursor-pointer border border-transparent"
+              className="flex items-center gap-1 px-1.5 py-1 rounded-lg text-xs font-semibold hover:bg-gray-100 dark:hover:bg-[#222] hover:text-black dark:hover:text-white transition-all cursor-pointer border border-transparent"
               title="Adicionar Nota a este projeto"
             >
-              <FileText size={13} strokeWidth={2.5} />
+              <FileText size={12} strokeWidth={2.5} />
               {notesCount > 0 ? (
-                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">{notesCount}</span>
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{notesCount}</span>
               ) : (
-                <span className="text-[11px] font-medium hidden xs:inline">Nota</span>
+                <span className="text-[10px] font-medium hidden xs:inline">Nota</span>
               )}
-            </button>
-
-            {/* Gerar Link para Cliente (Entrega com Link Desbloqueado + Avaliação) */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onActionClick?.('clientDelivery', project);
-              }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all cursor-pointer shadow-xs"
-              title="Gerar Link de Entrega para o Cliente (desbloqueado)"
-            >
-              <Link size={11} strokeWidth={2.5} />
-              <span className="text-[11px] font-bold">Entrega</span>
             </button>
           </div>
 
           {/* Right actions (Light & Dark adaptive round buttons) */}
-          <div className="flex items-center gap-2 relative">
+          <div className="flex items-center gap-1.5 relative">
             {/* Dropmenu de Visibilidade (Público / Não listado) */}
             <div className="relative">
               <button
@@ -540,13 +508,13 @@ const Card = React.memo(({
                   setShowVisibilityMenu(!showVisibilityMenu);
                   setShowMenu(false);
                 }}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer border ${isUnlisted
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer border ${isUnlisted
                     ? 'bg-amber-50 text-amber-600 border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 shadow-xs'
                     : 'bg-emerald-50 text-emerald-600 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-500/40 shadow-xs'
                   }`}
                 title={isUnlisted ? "Não listado (Apenas com link)" : "Público (Visível na página principal)"}
               >
-                {isUnlisted ? <EyeOff size={12} strokeWidth={2.5} /> : <Globe size={12} strokeWidth={2.5} />}
+                {isUnlisted ? <EyeOff size={11} strokeWidth={2.5} /> : <Globe size={11} strokeWidth={2.5} />}
               </button>
 
               {showVisibilityMenu && (
@@ -612,20 +580,20 @@ const Card = React.memo(({
             </div>
             <button
               onClick={onToggleFavorite}
-              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${isFavorite
+              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${isFavorite
                   ? 'bg-amber-50 text-amber-500 border border-amber-200 dark:bg-[#2a2415] dark:text-[#eab308] dark:border-amber-500/20'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-black border border-gray-200/80 dark:bg-[#222] dark:hover:bg-[#333] dark:text-[#888] dark:hover:text-[#ccc] dark:border-transparent'
                 }`}
               title="Favoritar"
             >
-              <Star size={12} className={isFavorite ? "fill-current" : ""} />
+              <Star size={11} className={isFavorite ? "fill-current" : ""} />
             </button>
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-black border border-gray-200/80 dark:bg-[#222] dark:hover:bg-[#333] dark:text-[#888] dark:hover:text-[#ccc] dark:border-transparent flex items-center justify-center transition-all cursor-pointer"
+              className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-black border border-gray-200/80 dark:bg-[#222] dark:hover:bg-[#333] dark:text-[#888] dark:hover:text-[#ccc] dark:border-transparent flex items-center justify-center transition-all cursor-pointer"
               title="Mais opções"
             >
-              <MoreHorizontal size={12} strokeWidth={3} />
+              <MoreHorizontal size={11} strokeWidth={3} />
             </button>
 
             {showMenu && (
@@ -748,7 +716,7 @@ export default function Admin() {
   };
 
   const handleCopyFeedback = (project: Project) => {
-    setCopyToast(`Link do projeto "${project.title}" copiado para a área de transferência!`);
+    setCopyToast(`Link de entrega do projeto "${project.title}" copiado com acesso liberado!`);
     setTimeout(() => setCopyToast(null), 3500);
   };
 
@@ -830,13 +798,14 @@ export default function Admin() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
+  const itemsPerPage = 8;
 
   // Initial default sidebar menu items matching user request
   const defaultMenuItems = [
     { id: 'dashboard', iconName: 'LayoutGrid', labelKey: 'dashboard', disabled: false, section: 'main' },
     { id: 'projects', iconName: 'Folder', labelKey: 'projects', disabled: false, section: 'main' },
     { id: 'clients', iconName: 'Users', labelKey: 'clients', disabled: false, section: 'main' },
+    { id: 'financial', iconName: 'DollarSign', labelKey: 'financial', disabled: false, section: 'main' },
     { id: 'notes', iconName: 'FileText', labelKey: 'notes', disabled: false, section: 'main' },
     { id: 'files', iconName: 'Cloud', labelKey: 'files', disabled: false, section: 'main' },
     { id: 'chats', iconName: 'MessageCircle', labelKey: 'chats', disabled: false, section: 'main' },
@@ -881,7 +850,9 @@ export default function Admin() {
       const savedVisible = localStorage.getItem('animasystem_visible_menu_ids');
       if (savedVisible) {
         const ids: string[] = JSON.parse(savedVisible);
-        return new Set(ids);
+        const set = new Set(ids);
+        set.add('financial');
+        return set;
       }
     } catch (e) {
       console.error("Error loading visible menu items", e);
@@ -1216,6 +1187,7 @@ export default function Admin() {
     switch (activeTab) {
       case 'dashboard': return t.dashboard;
       case 'clients': return t.manageClients;
+      case 'financial': return lang === 'pt' ? 'Financeiro' : 'Financial';
       case 'notes': return lang === 'pt' ? 'Bloco de Notas' : 'Notes';
       case 'files': return lang === 'pt' ? 'Gerenciador de Arquivos' : 'Files Manager';
       case 'chats': return lang === 'pt' ? 'Conversas' : 'Chats';
@@ -1235,6 +1207,7 @@ export default function Admin() {
     switch (activeTab) {
       case 'dashboard': return t.overviewDesc;
       case 'clients': return t.manageClientsDesc;
+      case 'financial': return lang === 'pt' ? 'Módulo financeiro, controle de faturamento, orçamentos e recebíveis.' : 'Financial management, invoicing, budgets, and receivables.';
       case 'notes': return lang === 'pt' ? 'Crie notas rápidas, roteiros, checklists e briefings de projetos.' : 'Create quick notes, scripts, checklists, and project briefs.';
       case 'files': return lang === 'pt' ? 'Armazene e gerencie mídias, contratos, arquivos RAW e exportações.' : 'Store and manage media, contracts, RAW files, and exports.';
       case 'chats': return lang === 'pt' ? 'Canais de atendimento em tempo real com clientes e membros de equipe.' : 'Real-time client support and team communication channels.';
@@ -1732,7 +1705,7 @@ export default function Admin() {
 
         {/* Normal Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-10 pt-10 flex-1 w-full flex flex-col overflow-y-auto no-scrollbar">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-10 pt-5 sm:pt-6 flex-1 w-full flex flex-col overflow-y-auto no-scrollbar">
 
             {(isCreating || editingProject) ? (
               <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-200 dark:border-[#222] p-6 sm:p-8 flex-1 shadow-sm relative mb-6">
@@ -1864,7 +1837,7 @@ service cloud.firestore {
                 )}
 
                 {/* Page Header */}
-                <div className="flex flex-wrap items-center justify-between gap-6 mb-6 flex-shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-3.5 sm:mb-4 flex-shrink-0">
                   <div>
                     <h1 className="text-2xl font-bold text-black dark:text-white mb-1">
                       {getHeaderTitle()}
@@ -2058,6 +2031,8 @@ service cloud.firestore {
                       </div>
                     </div>
                   </div>
+                ) : activeTab === 'financial' ? (
+                  <FinancialTab lang={lang} />
                 ) : activeTab === 'notes' ? (
                   <NotesTab lang={lang} />
                 ) : activeTab === 'files' ? (
@@ -2084,7 +2059,7 @@ service cloud.firestore {
 
                 {/* Tab Projetos: Mantida montada com alternância de visibilidade para que miniaturas e DOM permaneçam cacheados */}
                 <div className={`flex-1 flex-col h-full overflow-hidden ${activeTab === 'projects' ? 'flex' : 'hidden'}`}>
-                  <div className={`flex-1 ${viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 content-start items-start" : "flex flex-col gap-3"} overflow-y-auto no-scrollbar pb-4`}>
+                  <div className={`flex-1 ${viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-3.5 content-start items-start" : "flex flex-col gap-2.5"} overflow-y-auto no-scrollbar pb-2`}>
                     {filteredProjects.map((project, idx) => {
                       const pageIndex = Math.floor(idx / itemsPerPage) + 1;
                       const isVisible = pageIndex === currentPage;
@@ -2129,21 +2104,21 @@ service cloud.firestore {
 
                   {/* Pagination */}
                   {totalPages > 1 && (
-                    <div className="mt-4 flex items-center justify-center w-full pb-6 gap-6 flex-shrink-0">
+                    <div className="mt-2.5 flex items-center justify-center w-full pb-2 gap-4 flex-shrink-0">
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
-                        className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-8 h-8 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <ChevronLeft size={18} />
+                        <ChevronLeft size={16} />
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {Array.from({ length: totalPages }).map((_, idx) => (
                           <button
                             key={idx}
                             onClick={() => setCurrentPage(idx + 1)}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold transition-colors ${currentPage === idx + 1 ? 'border border-gray-300 dark:border-[#222] bg-gray-100 dark:bg-[#1a1a1a] text-black dark:text-white shadow-sm' : 'border border-transparent text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#111] hover:text-black dark:hover:text-white'}`}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors ${currentPage === idx + 1 ? 'border border-gray-300 dark:border-[#222] bg-gray-100 dark:bg-[#1a1a1a] text-black dark:text-white shadow-sm' : 'border border-transparent text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#111] hover:text-black dark:hover:text-white'}`}
                           >
                             {idx + 1}
                           </button>
@@ -2153,9 +2128,9 @@ service cloud.firestore {
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
-                        className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-8 h-8 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <ChevronRight size={18} />
+                        <ChevronRight size={16} />
                       </button>
                     </div>
                   )}
@@ -2165,7 +2140,7 @@ service cloud.firestore {
             )}
 
             {/* Footer */}
-            <footer className="py-6 mt-auto flex-shrink-0 flex flex-col xl:flex-row items-center justify-between text-gray-500 dark:text-[#666] text-[11px] font-medium gap-6 border-t border-gray-200 dark:border-[#1a1a1a]">
+            <footer className="py-3 mt-auto flex-shrink-0 flex flex-col xl:flex-row items-center justify-between text-gray-500 dark:text-[#666] text-[11px] font-medium gap-4 border-t border-gray-200 dark:border-[#1a1a1a]">
               <p>© 2026 <a href="https://animasystem.com.br" target="_blank" rel="noopener noreferrer" className="hover:text-black dark:hover:text-white transition-colors">AnimaSystem</a></p>
 
               <div className="flex flex-wrap items-center justify-center gap-6">

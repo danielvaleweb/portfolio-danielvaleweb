@@ -138,48 +138,130 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
     showToast("Baixando imagem da capa para anexar...");
   };
 
+  // Converte a imagem da capa em Blob de forma 100% resiliente (suportando CORS, base64 e proxy)
+  const getThumbnailBlob = async (): Promise<Blob | null> => {
+    if (!project.thumbnail) return null;
+    const url = project.thumbnail;
+
+    // Se já for data URL
+    if (url.startsWith('data:image')) {
+      try {
+        const res = await fetch(url);
+        return await res.blob();
+      } catch {}
+    }
+
+    // 1. Fetch direto com CORS
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 0) return blob;
+      }
+    } catch {}
+
+    // 2. Offscreen Canvas
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 1200;
+            canvas.height = img.naturalHeight || 675;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0);
+            canvas.toBlob(resolve, 'image/png');
+          } catch {
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+      if (blob && blob.size > 0) return blob;
+    } catch {}
+
+    // 3. Fallback com proxy para imagens sem CORS
+    try {
+      const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=png`;
+      const res = await fetch(proxyUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 0) return blob;
+      }
+    } catch {}
+
+    return null;
+  };
+
   const handleCopyThumbnail = async () => {
     if (!project.thumbnail) return;
     try {
-      // First attempt: try copying image data directly
-      const response = await fetch(project.thumbnail);
-      const blob = await response.blob();
-
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = URL.createObjectURL(blob);
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = rej;
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth || 800;
-      canvas.height = img.naturalHeight || 450;
-      const ctx = canvas.getContext("2d");
-      ctx?.drawImage(img, 0, 0);
-
-      const pngBlob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
-      if (pngBlob && navigator.clipboard && "write" in navigator.clipboard && typeof ClipboardItem !== "undefined") {
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
+      const blob = await getThumbnailBlob();
+      if (blob && navigator.clipboard && "write" in navigator.clipboard && typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "image/png": blob,
+            "text/plain": new Blob([messageText], { type: "text/plain" })
+          })
+        ]);
         setCopiedField("thumb");
-        showToast("Imagem copiada! Cole direto no WhatsApp Web (Ctrl+V)");
-        setTimeout(() => setCopiedField(null), 2500);
+        showToast("Foto e mensagem copiadas! No WhatsApp basta pressionar Ctrl+V.");
+        setTimeout(() => setCopiedField(null), 3000);
         return;
       }
     } catch {
-      // Fallback: download thumbnail so user can attach it
       handleDownloadThumbnail();
     }
   };
 
   const handleSendWhatsApp = async () => {
-    // Tenta copiar a foto da capa para o clipboard para o usuário poder dar Ctrl+V no WhatsApp
-    if (project.thumbnail) {
+    let blob: Blob | null = null;
+    try {
+      blob = await getThumbnailBlob();
+    } catch {}
+
+    // 1. No Mobile: usa a Web Share API nativa com arquivo anexado!
+    // Abre o WhatsApp diretamente com a FOTO e o TEXTO como legenda (exatamente como na print)!
+    if (blob && typeof navigator !== "undefined" && "canShare" in navigator) {
       try {
-        await handleCopyThumbnail();
-      } catch {}
+        const imageFile = new File([blob], `${project.title.replace(/[^a-zA-Z0-9]/g, "_")}_capa.png`, { type: "image/png" });
+        if (navigator.canShare({ files: [imageFile] })) {
+          await navigator.share({
+            files: [imageFile],
+            title: project.title,
+            text: messageText,
+          });
+          showToast("Mensagem e foto compartilhadas!");
+          return;
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+        console.warn("navigator.share fallback to wa.me:", err);
+      }
     }
+
+    // 2. No Desktop: Copia a foto + texto para o clipboard para o usuário colar direto no WhatsApp Web
+    if (blob && navigator.clipboard && "write" in navigator.clipboard && typeof ClipboardItem !== "undefined") {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "image/png": blob,
+            "text/plain": new Blob([messageText], { type: "text/plain" })
+          })
+        ]);
+        showToast("Foto e texto copiados! Cole com Ctrl+V no WhatsApp.");
+      } catch {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+          showToast("Foto copiada! Cole com Ctrl+V no WhatsApp.");
+        } catch {}
+      }
+    }
+
+    // Abre a conversa do WhatsApp
     const text = encodeURIComponent(messageText);
     let cleanPhone = clientPhone.replace(/\D/g, "");
     if (cleanPhone) {

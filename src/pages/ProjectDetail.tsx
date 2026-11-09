@@ -5,8 +5,34 @@ import { getProjects, getEvaluations, updateProject, addNotification, getClients
 import { getGalleryFromIndexedDB } from "../utils/imageStorage";
 import { motion, AnimatePresence } from "motion/react";
 import CustomVideoPlayer from "../components/CustomVideoPlayer";
-import { ArrowLeft, Download, Lock, Unlock, CheckCircle2, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle, User, Phone, Instagram, MessageCircle, Mail, Image as ImageIcon, Maximize2 } from "lucide-react";
+import { ArrowLeft, Download, Lock, Unlock, CheckCircle2, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle, User, Phone, Instagram, MessageCircle, Mail, Image as ImageIcon, Maximize2, Share2, Check, Link2 } from "lucide-react";
 import { triggerDownload } from "../utils/downloadHelper";
+
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    console.warn("navigator.clipboard failed, using fallback:", e);
+  }
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const success = document.execCommand("copy");
+    textArea.remove();
+    return success;
+  } catch {
+    return false;
+  }
+};
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -16,9 +42,10 @@ export default function ProjectDetail() {
   const [downloadCodeInput, setDownloadCodeInput] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isDirectUnlocked, setIsDirectUnlocked] = useState(false);
-  const [showUnlockBanner, setShowUnlockBanner] = useState(false);
+  const [unlockAnimationPhase, setUnlockAnimationPhase] = useState<'idle' | 'unlatch' | 'slide' | 'unlocked'>('idle');
+  const unlockTimersRef = useRef<NodeJS.Timeout[]>([]);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [client, setClient] = useState<Client | null>(null);
   const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
@@ -27,23 +54,189 @@ export default function ProjectDetail() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const [nextProject, setNextProject] = useState<Project | null>(null);
+  const [showShareTooltip, setShowShareTooltip] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+
+  const getShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    return window.location.href;
+  };
+
+  const handleShareWhatsApp = () => {
+    const url = getShareUrl();
+    const title = project?.title || 'Projeto';
+    const message = `Confira o projeto "${title}":\n${url}`;
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+    setShowShareTooltip(false);
+  };
+
+  const handleCopyShareLink = async () => {
+    const url = getShareUrl();
+    const ok = await copyToClipboard(url);
+    if (ok) {
+      setCopiedShareLink(true);
+      setTimeout(() => {
+        setCopiedShareLink(false);
+        setShowShareTooltip(false);
+      }, 1800);
+    }
+  };
+
+  // Estados e controle dos 6 quadrinhos separados do código de acesso
+  const [codeDigits, setCodeDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const digitInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Foco automático e limpeza ao abrir o modal
+  useEffect(() => {
+    if (showDownloadModal) {
+      setCodeDigits(['', '', '', '', '', '']);
+      setDownloadError('');
+      const timer = setTimeout(() => {
+        digitInputRefs.current[0]?.focus();
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [showDownloadModal]);
+
+  const handleDigitChange = (index: number, value: string) => {
+    const char = value.slice(-1).toUpperCase();
+    if (char && !/^[A-Z0-9]$/.test(char)) return;
+
+    const newDigits = [...codeDigits];
+    newDigits[index] = char;
+    setCodeDigits(newDigits);
+    setDownloadError('');
+
+    if (char && index < 5) {
+      digitInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (codeDigits[index]) {
+        const newDigits = [...codeDigits];
+        newDigits[index] = '';
+        setCodeDigits(newDigits);
+      } else if (index > 0) {
+        const newDigits = [...codeDigits];
+        newDigits[index - 1] = '';
+        setCodeDigits(newDigits);
+        digitInputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      digitInputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      digitInputRefs.current[index + 1]?.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleUnlockWithCode();
+    }
+  };
+
+  const handleDigitPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!pasted) return;
+
+    const newDigits = [...codeDigits];
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = pasted[i] || '';
+    }
+    setCodeDigits(newDigits);
+    setDownloadError('');
+
+    const targetIdx = Math.min(pasted.length, 5);
+    digitInputRefs.current[targetIdx]?.focus();
+  };
+
+  useEffect(() => {
+    return () => {
+      unlockTimersRef.current.forEach((t) => clearTimeout(t));
+    };
+  }, []);
+
+  const handleUnlockWithCode = () => {
+    if (!project) return;
+    const enteredCode = codeDigits.join('').trim().toUpperCase();
+    const expectedCode = (project.downloadCode || '').trim().toUpperCase();
+
+    if (enteredCode.length < 6) {
+      setDownloadError('Digite os 6 caracteres do código.');
+      return;
+    }
+
+    if (expectedCode && enteredCode === expectedCode) {
+      // Limpa timers anteriores
+      unlockTimersRef.current.forEach((t) => clearTimeout(t));
+      unlockTimersRef.current = [];
+
+      // 1. Fecha o modal na hora
+      setShowDownloadModal(false);
+      setDownloadError('');
+
+      // 2. Inicia a animação imediatamente após o modal fechar:
+      // Fase 1: Destranca o cadeado na direita com animação de pop
+      setUnlockAnimationPhase('unlatch');
+
+      // Fase 2 (após 450ms): A forma desliza para a esquerda e o botão muda para verde
+      const t1 = setTimeout(() => {
+        setUnlockAnimationPhase('slide');
+      }, 450);
+
+      // Fase 3 (após 1250ms): Conclui a animação, atualiza a URL e estabelece o download liberado
+      const t2 = setTimeout(() => {
+        setUnlockAnimationPhase('unlocked');
+        setIsDirectUnlocked(true);
+        setSearchParams({ unlock: enteredCode }, { replace: true });
+      }, 1250);
+
+      unlockTimersRef.current = [t1, t2];
+    } else {
+      setDownloadError('Código de acesso incorreto. Tente novamente.');
+    }
+  };
 
   // Efeito de detecção de desbloqueio via Link Único do Cliente (?unlock=CODE ou ?token=CODE)
+  // O botão de download liberado aparece ESTRITAMENTE quando a URL atual contém o código correto.
   useEffect(() => {
-    if (!project) return;
+    if (!project) {
+      setIsDirectUnlocked(false);
+      return;
+    }
+
+    // Se a animação de liberação estiver em andamento, não interrompe
+    if (unlockAnimationPhase !== 'idle' && unlockAnimationPhase !== 'unlocked') {
+      return;
+    }
+
+    // Limpa quaisquer resquícios de armazenamento para garantir que não persista na navegação comum
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(`unlocked_${project.id}`);
+      } catch {}
+    }
+
     const urlUnlockParam = (searchParams.get('unlock') || searchParams.get('token') || searchParams.get('code') || '').trim().toUpperCase();
-    const sessionUnlocked = typeof window !== 'undefined' && sessionStorage.getItem(`unlocked_${project.id}`) === 'true';
 
     if (urlUnlockParam && project.downloadCode && urlUnlockParam === project.downloadCode.trim().toUpperCase()) {
       setIsDirectUnlocked(true);
-      setShowUnlockBanner(true);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(`unlocked_${project.id}`, 'true');
+    } else {
+      if (unlockAnimationPhase === 'idle') {
+        setIsDirectUnlocked(false);
       }
-    } else if (sessionUnlocked) {
-      setIsDirectUnlocked(true);
     }
-  }, [project, searchParams]);
+  }, [project, searchParams, unlockAnimationPhase]);
+
+  // Estados visuais calculados para animação do botão de download
+  const isFinalUnlocked = isDirectUnlocked || unlockAnimationPhase === 'unlocked';
+  const isShapeOnLeft = isFinalUnlocked || unlockAnimationPhase === 'slide';
+  const isGreenBg = isFinalUnlocked || unlockAnimationPhase === 'slide';
+  const isUnlatched = isFinalUnlocked || unlockAnimationPhase === 'unlatch' || unlockAnimationPhase === 'slide';
+  const isUnlockedText = isFinalUnlocked || unlockAnimationPhase === 'slide';
+  // Download totalmente liberado em estado contínuo (sweep RTL e pulso/destrancar do cadeado a cada 3s)
+  const isContinuousUnlocked = isFinalUnlocked && (unlockAnimationPhase === 'unlocked' || unlockAnimationPhase === 'idle');
 
   // Cinematic photo gallery states
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
@@ -432,7 +625,7 @@ export default function ProjectDetail() {
             </button>
 
             {/* Photo Viewport */}
-            <div className="relative w-full h-full bg-[#0a0a0a] border border-neutral-900 rounded-2xl overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] flex items-center justify-center">
+            <div className="relative w-full h-full bg-[#0a0a0a] border border-neutral-900 rounded-none overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] flex items-center justify-center">
               <AnimatePresence mode="wait">
                 <motion.img
                   key={activePhotoIndex}
@@ -505,8 +698,8 @@ export default function ProjectDetail() {
                 )}
               </button>
 
-              {/* Optional Download */}
-              <div className="min-w-[120px]">
+              {/* Optional Download Cirurgicamente Customizado */}
+              <div>
                 {project.allowDownload !== false && (
                   <button
                     onClick={() => {
@@ -518,21 +711,31 @@ export default function ProjectDetail() {
                         setDownloadError('');
                       }
                     }}
-                    className={`flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-full transition-all duration-300 shadow-sm cursor-pointer ${
-                      isDirectUnlocked
-                        ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white'
-                        : 'bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-950'
-                    }`}
+                    className={`group relative h-[42px] rounded-[13px] p-0 flex items-center overflow-hidden shadow-sm active:scale-[0.98] transition-all duration-200 cursor-pointer select-none ${isDirectUnlocked
+                        ? 'bg-[#52C31A] border-[2px] border-[#4AC80B] hover:brightness-105'
+                        : 'bg-neutral-950 border-[2px] border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900'
+                      }`}
+                    title="Download do Projeto"
                   >
-                    {isDirectUnlocked ? (
-                      <>
-                        <Lock size={13} className="text-white" /> Download Liberado
-                      </>
-                    ) : (
-                      <>
-                        <Download size={13} /> Download
-                      </>
-                    )}
+                    {/* Caixa Branca com Ícone (Cadeado Fechado / Aberto) e Setinha */}
+                    <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0 z-10">
+                      {isDirectUnlocked ? (
+                        <Unlock size={16} className="text-[#52C31A] ml-0.5" strokeWidth={2.5} />
+                      ) : (
+                        <Lock size={16} className="text-neutral-950" strokeWidth={2.5} />
+                      )}
+                      <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
+                    </div>
+
+                    {/* Texto Download Liberado / Solicitar Download */}
+                    <div className="flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist">
+                      <span className="font-urbanist font-bold text-[13px] tracking-wide">
+                        {isDirectUnlocked ? "Download Liberado" : "Solicitar Download"}
+                      </span>
+                      <span className={`font-urbanist font-light text-[10px] ${isDirectUnlocked ? 'text-white/95' : 'text-neutral-300'}`}>
+                        {isDirectUnlocked ? "Clique aqui para iniciar o download" : "Cole o código para liberar"}
+                      </span>
+                    </div>
                   </button>
                 )}
               </div>
@@ -551,7 +754,7 @@ export default function ProjectDetail() {
                     setActivePhotoIndex(idx);
                     setIsSlideshowActive(false);
                   }}
-                  className={`relative flex-shrink-0 w-20 md:w-24 aspect-video rounded-lg overflow-hidden border transition-all duration-300 snap-center ${idx === activePhotoIndex
+                  className={`relative flex-shrink-0 w-20 md:w-24 aspect-video rounded-none overflow-hidden border transition-all duration-300 snap-center ${idx === activePhotoIndex
                       ? "border-emerald-500 scale-105 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                       : "border-neutral-800 hover:border-neutral-500 opacity-60 hover:opacity-100"
                     }`}
@@ -604,11 +807,6 @@ export default function ProjectDetail() {
             </span>
             Voltar
           </button>
-
-          <span className="text-xs font-mono uppercase tracking-[0.25em] text-neutral-400 flex items-center gap-1.5">
-            <Film size={12} className="text-neutral-500" />
-            {project.category}
-          </span>
         </div>
 
         {/* Hero Title Area */}
@@ -632,7 +830,7 @@ export default function ProjectDetail() {
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
-              className={`relative w-full aspect-square md:aspect-video lg:aspect-square bg-black rounded-3xl overflow-hidden shadow-lg border border-neutral-200/40 z-10 transition-all duration-300`}
+              className={`relative w-full aspect-square md:aspect-video lg:aspect-square rounded-none overflow-hidden shadow-md z-10 transition-all duration-300 border-0`}
             >
               {!showVideoModal ? (
                 <div
@@ -642,13 +840,14 @@ export default function ProjectDetail() {
                   <img
                     src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
                     alt={project.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-100"
                   />
-                  {/* Overlay & Centered Play Button */}
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
-                    <div className="flex items-center justify-center w-20 h-20 rounded-full bg-white/90 text-neutral-950 shadow-2xl group-hover:scale-110 group-hover:bg-white transition-all duration-300">
-                      <Play size={28} className="fill-neutral-950 ml-1 text-neutral-950" />
-                    </div>
+                  {/* Somente o Ícone de Play (sem círculo / sem overlay escuro) */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Play
+                      size={68}
+                      className="fill-white text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.65)] ml-1 transition-transform duration-300 group-hover:scale-115"
+                    />
                   </div>
                 </div>
               ) : null}
@@ -684,7 +883,7 @@ export default function ProjectDetail() {
                     <div
                       key={idx}
                       onClick={() => setSelectedGalleryIndex(idx)}
-                      className="group relative aspect-4/3 rounded-2xl overflow-hidden cursor-pointer bg-neutral-100 border border-neutral-200/70 shadow-sm hover:shadow-md transition-all duration-300"
+                      className="group relative aspect-4/3 rounded-none overflow-hidden cursor-pointer bg-neutral-100 border border-neutral-200/70 shadow-sm hover:shadow-md transition-all duration-300"
                     >
                       <img
                         src={imgUrl}
@@ -696,9 +895,6 @@ export default function ProjectDetail() {
                         <span className="opacity-0 group-hover:opacity-100 transition-all p-2.5 rounded-full bg-white/95 text-neutral-900 shadow-md transform scale-90 group-hover:scale-100">
                           <Maximize2 size={16} />
                         </span>
-                      </div>
-                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono">
-                        {String(idx + 1).padStart(2, '0')}
                       </div>
                     </div>
                   ))}
@@ -788,18 +984,21 @@ export default function ProjectDetail() {
               </motion.div>
             )}
 
-            {/* Botão de Download na barra de ações */}
-            {project.allowDownload !== false && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.08 }}
-                className="w-full"
-              >
-                <button
+            {/* Linha com Botão de Download + Botão de Compartilhar */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.08 }}
+              className="w-full flex items-center gap-3"
+            >
+              {project.allowDownload !== false && (
+                <motion.button
+                  layout
                   type="button"
+                  disabled={unlockAnimationPhase !== 'idle' && unlockAnimationPhase !== 'unlocked'}
                   onClick={() => {
-                    if (isDirectUnlocked || !project.downloadCode) {
+                    if (unlockAnimationPhase !== 'idle' && unlockAnimationPhase !== 'unlocked') return;
+                    if (isFinalUnlocked || !project.downloadCode) {
                       handleDirectDownload(project.downloadUrl || project.videoUrl || '');
                     } else {
                       setShowDownloadModal(true);
@@ -807,26 +1006,220 @@ export default function ProjectDetail() {
                       setDownloadError('');
                     }
                   }}
-                  className={`w-full text-xs font-semibold tracking-wider uppercase py-3.5 px-6 rounded-2xl shadow-xs transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
-                    isDirectUnlocked
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20 active:scale-[0.98]'
-                      : 'bg-white hover:bg-neutral-50 active:scale-[0.98] text-neutral-900 border border-neutral-200/80 hover:border-neutral-400'
+                  animate={{
+                    backgroundColor: isGreenBg ? "#52C31A" : "#0d0d0d",
+                    borderColor: isGreenBg ? "#4AC80B" : "#262626",
+                  }}
+                  transition={{
+                    backgroundColor: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
+                    borderColor: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
+                    layout: { type: "spring", stiffness: 120, damping: 18, mass: 0.8 },
+                  }}
+                  className={`group relative flex-1 h-[56px] rounded-2xl p-0 flex items-center overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-shadow duration-200 cursor-pointer select-none border-[2px] ${
+                    isShapeOnLeft ? 'flex-row' : 'flex-row-reverse'
                   }`}
+                  title="Download do Projeto"
                 >
-                  {isDirectUnlocked ? (
+                  {/* Caixa Branca com Ícone (Cadeado Fechado na Direita / Aberto na Esquerda) */}
+                  <motion.div
+                    layout
+                    transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
+                    className={`relative h-full w-[56px] min-w-[56px] bg-white flex items-center justify-center flex-shrink-0 z-10 ${
+                      isShapeOnLeft ? 'rounded-l-[14px]' : 'rounded-r-[14px]'
+                    }`}
+                  >
+                    <AnimatePresence mode="wait">
+                      {!isUnlatched ? (
+                        <motion.div
+                          key="locked"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.6, opacity: 0, rotate: -15 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex items-center justify-center"
+                        >
+                          <Lock
+                            size={21}
+                            className="text-neutral-950 transition-transform duration-200 group-hover:scale-110"
+                            strokeWidth={2.5}
+                          />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="unlocked"
+                          initial={{ scale: 0.4, rotate: -25, opacity: 0 }}
+                          animate={{ scale: [0.4, 1.3, 1], rotate: 0, opacity: 1 }}
+                          transition={{ duration: 0.45, ease: "backOut" }}
+                          className="relative flex items-center justify-center"
+                        >
+                          {/* Pulso de halo verde sutil em sincronia com o sweep */}
+                          {isContinuousUnlocked && (
+                            <div className="absolute w-7 h-7 rounded-full bg-[#52C31A]/35 pointer-events-none animate-lock-glow" />
+                          )}
+
+                          {/* Ícone de Cadeado Desbloqueado com pulso e abertura da haste sincronizados com a passagem da luz */}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="21"
+                            height="21"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={`transition-colors duration-500 ${
+                              isGreenBg ? 'text-[#52C31A]' : 'text-neutral-950'
+                            } ml-0.5 relative z-10 ${
+                              isContinuousUnlocked ? 'animate-lock-pulse' : 'group-hover:scale-110'
+                            }`}
+                          >
+                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                            <path
+                              d="M7 11V7a5 5 0 0 1 9.9-1"
+                              className={isContinuousUnlocked ? 'animate-shackle-unlatch' : ''}
+                            />
+                          </svg>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Setinha Branca apontando para dentro do botão */}
+                    <motion.div
+                      key={isShapeOnLeft ? "notch-right-side" : "notch-left-side"}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ duration: 0.25 }}
+                      className={`absolute top-1/2 -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent z-20 pointer-events-none ${
+                        isShapeOnLeft
+                          ? 'right-[-8px] border-l-[8px] border-l-white'
+                          : 'left-[-8px] border-r-[8px] border-r-white'
+                      }`}
+                    />
+                  </motion.div>
+
+                  {/* Seção com Texto: 
+                      - Liberado: alinhado à esquerda (pl-4 sm:pl-5), "Download Liberado" encima, "Clique aqui para iniciar o download" embaixo
+                      - Com código: alinhado à direita (pr-4 sm:pr-5), "Solicitar Download" encima, "Cole o código para liberar" embaixo
+                  */}
+                  <motion.div
+                    layout
+                    transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
+                    className={`flex-1 flex flex-col justify-center text-white leading-tight font-urbanist select-none overflow-hidden ${
+                      isShapeOnLeft ? 'items-start text-left pl-4 sm:pl-5 pr-3' : 'items-center text-center px-4'
+                    }`}
+                  >
+                    <AnimatePresence mode="wait">
+                      {isUnlockedText ? (
+                        <motion.div
+                          key="text-liberado"
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 6 }}
+                          transition={{ duration: 0.22 }}
+                          className="flex flex-col items-start text-left w-full overflow-hidden"
+                        >
+                          <span className="font-urbanist font-bold text-[14.5px] sm:text-[15.5px] tracking-tight text-white leading-tight truncate w-full">
+                            Download Liberado
+                          </span>
+                          <span className="font-urbanist font-light text-[10.5px] sm:text-[11.5px] text-white/95 mt-0.5 truncate w-full">
+                            Clique aqui para iniciar o download
+                          </span>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="text-bloqueado"
+                          initial={{ opacity: 0, scale: 0.96 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.96 }}
+                          transition={{ duration: 0.22 }}
+                          className="flex flex-col items-center text-center justify-center w-full px-1 overflow-hidden"
+                        >
+                          <span className="font-urbanist font-bold text-[15px] sm:text-[16px] tracking-tight text-white leading-tight truncate w-full">
+                            Solicitar Download
+                          </span>
+                          <span className="font-urbanist font-light text-[11px] sm:text-[11.5px] text-neutral-300 mt-0.5 truncate w-full">
+                            Cole o código para liberar
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+
+                  {/* Efeito Light Sweep de 3 em 3 segundos (da direita para esquerda) quando o download está liberado */}
+                  {isContinuousUnlocked && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-[25]">
+                      <div className="animate-light-sweep absolute inset-y-0 w-[140px] pointer-events-none" />
+                    </div>
+                  )}
+                </motion.button>
+              )}
+
+              {/* Botão de Compartilhar ao lado do Download: Branco sem traçado, com sombra suave das sessões */}
+              <div className="relative flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowShareTooltip((prev) => !prev)}
+                  className={`h-[56px] w-[56px] rounded-2xl border-0 bg-white hover:bg-neutral-50 active:scale-95 text-neutral-800 flex items-center justify-center transition-all duration-200 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.1)] ${showShareTooltip ? 'shadow-md ring-2 ring-[#52C31A]/30' : ''
+                    }`}
+                  title="Compartilhar projeto"
+                >
+                  <Share2 size={20} strokeWidth={2.2} className="text-neutral-800" />
+                </button>
+
+                {/* Tooltip com WhatsApp e Copiar Link */}
+                <AnimatePresence>
+                  {showShareTooltip && (
                     <>
-                      <Lock size={15} className="text-white" />
-                      <span className="font-bold tracking-wide">Download Liberado</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={14} className="text-neutral-700" />
-                      <span>Download</span>
+                      {/* Backdrop invisível para fechar ao clicar fora */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowShareTooltip(false)}
+                      />
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute right-0 bottom-[calc(100%+12px)] z-50 w-52 bg-neutral-950/95 backdrop-blur-md text-white rounded-2xl p-1.5 shadow-2xl border border-neutral-800"
+                      >
+                        {/* Setinha do Tooltip */}
+                        <div className="absolute right-5 -bottom-1.5 w-3 h-3 bg-neutral-950 border-r border-b border-neutral-800 rotate-45" />
+
+                        {/* WhatsApp */}
+                        <button
+                          type="button"
+                          onClick={handleShareWhatsApp}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-neutral-100 hover:bg-white/10 active:bg-white/15 transition-colors text-left cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-[#25D366]/20 flex items-center justify-center text-[#25D366] group-hover:scale-110 transition-transform">
+                            <MessageCircle size={14} />
+                          </div>
+                          <span>WhatsApp</span>
+                        </button>
+
+                        {/* Divisor */}
+                        <div className="h-px bg-neutral-800/80 my-1 mx-2" />
+
+                        {/* Copiar Link */}
+                        <button
+                          type="button"
+                          onClick={handleCopyShareLink}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-neutral-100 hover:bg-white/10 active:bg-white/15 transition-colors text-left cursor-pointer group"
+                        >
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${copiedShareLink ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-neutral-300 group-hover:scale-110'
+                            }`}>
+                            {copiedShareLink ? <Check size={13} strokeWidth={2.5} /> : <Link2 size={13} />}
+                          </div>
+                          <span>{copiedShareLink ? 'Link copiado!' : 'Copiar link'}</span>
+                        </button>
+                      </motion.div>
                     </>
                   )}
-                </button>
-              </motion.div>
-            )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -1026,11 +1419,7 @@ export default function ProjectDetail() {
                 <X size={20} />
               </button>
 
-              <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center mb-6">
-                <Download size={20} className="text-neutral-800" />
-              </div>
-
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 mt-1">
                 <h3 className="text-xl font-bold text-neutral-900">Código de Acesso</h3>
                 <div className="group relative flex items-center justify-center">
                   <HelpCircle size={16} className="text-neutral-400 hover:text-neutral-600 cursor-help transition-colors" />
@@ -1042,52 +1431,87 @@ export default function ProjectDetail() {
               </div>
               <p className="text-sm text-neutral-500 mb-6">Este projeto é protegido. Insira o código de download para acessar os arquivos em alta resolução.</p>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
+                {/* 6 Quadrinhos Separados de Entrada */}
                 <div>
-                  <input
-                    type="text"
-                    value={downloadCodeInput}
-                    onChange={(e) => {
-                      setDownloadCodeInput(e.target.value.toUpperCase());
-                      setDownloadError('');
-                    }}
-                    placeholder="DIGITE O CÓDIGO"
-                    className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 rounded-xl px-4 py-3.5 focus:outline-none focus:border-neutral-400 focus:bg-white transition-colors text-center font-mono font-bold tracking-widest uppercase"
-                    autoFocus
-                  />
-                  {downloadError && (
-                    <p className="text-red-500 text-xs font-semibold mt-2 text-center">{downloadError}</p>
-                  )}
+                  <div className="flex items-center justify-center gap-2 sm:gap-2.5 my-2">
+                    {codeDigits.map((digit, idx) => {
+                      const enteredCode = codeDigits.join('').trim().toUpperCase();
+                      const expectedCode = (project?.downloadCode || '').trim().toUpperCase();
+                      const isCodeComplete = codeDigits.every((d) => d.trim() !== '') && enteredCode.length === 6;
+                      const isCodeValid = isCodeComplete && expectedCode !== '' && enteredCode === expectedCode;
+                      const isCodeInvalid = isCodeComplete && (!expectedCode || enteredCode !== expectedCode);
+
+                      return (
+                        <input
+                          key={idx}
+                          ref={(el) => (digitInputRefs.current[idx] = el)}
+                          type="text"
+                          inputMode="text"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handleDigitChange(idx, e.target.value)}
+                          onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                          onPaste={handleDigitPaste}
+                          className={`w-11 h-14 sm:w-12 sm:h-15 text-xl sm:text-2xl font-mono font-black text-center uppercase rounded-2xl border-2 transition-all duration-200 outline-none select-none ${isCodeValid
+                              ? 'border-[#52C31A] bg-emerald-50/40 text-emerald-700 shadow-sm'
+                              : isCodeInvalid
+                                ? 'border-red-500 bg-red-50/40 text-red-600 shadow-sm'
+                                : digit
+                                  ? 'border-neutral-900 bg-neutral-50 text-neutral-900'
+                                  : 'border-neutral-200 bg-neutral-50/60 text-neutral-900 hover:border-neutral-300 focus:border-neutral-900 focus:bg-white focus:ring-4 focus:ring-neutral-900/10'
+                            }`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {(() => {
+                    const enteredCode = codeDigits.join('').trim().toUpperCase();
+                    const expectedCode = (project?.downloadCode || '').trim().toUpperCase();
+                    const isCodeComplete = codeDigits.every((d) => d.trim() !== '') && enteredCode.length === 6;
+                    const isCodeInvalid = isCodeComplete && (!expectedCode || enteredCode !== expectedCode);
+
+                    if (isCodeInvalid) {
+                      return (
+                        <motion.p
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-red-500 text-xs font-semibold mt-2.5 text-center"
+                        >
+                          Código de acesso incorreto. Tente novamente.
+                        </motion.p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
-                <button
-                  onClick={() => {
-                    if (downloadCodeInput === project.downloadCode) {
-                      if (!project.downloadUrl && !project.videoUrl) {
-                        setDownloadError('Link de download indisponível no momento.');
-                        return;
-                      }
-                      setIsDirectUnlocked(true);
-                      if (typeof window !== 'undefined') {
-                        sessionStorage.setItem(`unlocked_${project.id}`, 'true');
-                      }
-                      handleDirectDownload(project.downloadUrl || project.videoUrl || '');
-                    } else {
-                      setDownloadError('Código de acesso incorreto. Tente novamente.');
-                    }
-                  }}
-                  disabled={isDownloading}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isDownloading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Iniciando download...
-                    </>
-                  ) : (
-                    'Iniciar Download'
-                  )}
-                </button>
+                {/* Botão Liberar Download: não aparece se estiver incorreto, e fica clicável quando o código estiver correto */}
+                {(() => {
+                  const enteredCode = codeDigits.join('').trim().toUpperCase();
+                  const expectedCode = (project?.downloadCode || '').trim().toUpperCase();
+                  const isCodeComplete = codeDigits.every((d) => d.trim() !== '') && enteredCode.length === 6;
+                  const isCodeValid = isCodeComplete && expectedCode !== '' && enteredCode === expectedCode;
+                  const isCodeInvalid = isCodeComplete && (!expectedCode || enteredCode !== expectedCode);
+
+                  if (isCodeInvalid) return null;
+
+                  return (
+                    <button
+                      type="button"
+                      onClick={isCodeValid ? handleUnlockWithCode : undefined}
+                      disabled={!isCodeValid}
+                      className={`w-full font-bold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 select-none ${isCodeValid
+                          ? 'bg-neutral-950 hover:bg-black active:scale-[0.98] text-white cursor-pointer shadow-md border border-neutral-950'
+                          : 'bg-white border border-neutral-200 text-neutral-400 cursor-not-allowed shadow-none'
+                        }`}
+                    >
+                      <Unlock size={16} className={isCodeValid ? 'text-white' : 'text-neutral-400'} />
+                      Liberar Download
+                    </button>
+                  );
+                })()}
 
                 <div className="relative flex items-center justify-center py-1">
                   <div className="border-t border-neutral-100 w-full" />
@@ -1149,7 +1573,7 @@ export default function ProjectDetail() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.25 }}
-              className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              className="max-h-[75vh] max-w-full object-contain rounded-none shadow-2xl"
             />
 
             {validImages.length > 1 && (
@@ -1170,7 +1594,7 @@ export default function ProjectDetail() {
                 <button
                   key={idx}
                   onClick={() => setSelectedGalleryIndex(idx)}
-                  className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 transition-all border-2 ${selectedGalleryIndex === idx ? 'border-white scale-105' : 'border-transparent opacity-50 hover:opacity-100'
+                  className={`w-14 h-14 rounded-none overflow-hidden flex-shrink-0 transition-all border-2 ${selectedGalleryIndex === idx ? 'border-white scale-105' : 'border-transparent opacity-50 hover:opacity-100'
                     }`}
                 >
                   <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />

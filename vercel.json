@@ -1,6 +1,17 @@
 {
   "rewrites": [
     {
+      "source": "/projeto/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(WhatsApp|whatsapp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|LinkedInBot).*"
+        }
+      ],
+      "destination": "/api/preview?id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
