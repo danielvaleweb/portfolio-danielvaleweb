@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Project, Evaluation, Client } from "../types";
 import { getProjects, getEvaluations, updateProject, addNotification, getClients } from "../utils/storage";
 import { getGalleryFromIndexedDB } from "../utils/imageStorage";
 import { motion, AnimatePresence } from "motion/react";
 import CustomVideoPlayer from "../components/CustomVideoPlayer";
-import { ArrowLeft, Download, Lock, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle, User, Phone, Instagram, MessageCircle, Mail, Image as ImageIcon, Maximize2 } from "lucide-react";
+import { ArrowLeft, Download, Lock, Unlock, CheckCircle2, Film, Star, Play, Pause, Calendar, Award, Compass, X, ChevronLeft, ChevronRight, HelpCircle, User, Phone, Instagram, MessageCircle, Mail, Image as ImageIcon, Maximize2 } from "lucide-react";
 import { triggerDownload } from "../utils/downloadHelper";
 
 export default function ProjectDetail() {
@@ -16,6 +16,9 @@ export default function ProjectDetail() {
   const [downloadCodeInput, setDownloadCodeInput] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [isDirectUnlocked, setIsDirectUnlocked] = useState(false);
+  const [showUnlockBanner, setShowUnlockBanner] = useState(false);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [client, setClient] = useState<Client | null>(null);
   const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
@@ -24,6 +27,23 @@ export default function ProjectDetail() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const [nextProject, setNextProject] = useState<Project | null>(null);
+
+  // Efeito de detecção de desbloqueio via Link Único do Cliente (?unlock=CODE ou ?token=CODE)
+  useEffect(() => {
+    if (!project) return;
+    const urlUnlockParam = (searchParams.get('unlock') || searchParams.get('token') || searchParams.get('code') || '').trim().toUpperCase();
+    const sessionUnlocked = typeof window !== 'undefined' && sessionStorage.getItem(`unlocked_${project.id}`) === 'true';
+
+    if (urlUnlockParam && project.downloadCode && urlUnlockParam === project.downloadCode.trim().toUpperCase()) {
+      setIsDirectUnlocked(true);
+      setShowUnlockBanner(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`unlocked_${project.id}`, 'true');
+      }
+    } else if (sessionUnlocked) {
+      setIsDirectUnlocked(true);
+    }
+  }, [project, searchParams]);
 
   // Cinematic photo gallery states
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
@@ -37,6 +57,18 @@ export default function ProjectDetail() {
 
       if (foundProject) {
         setProject(foundProject);
+        if (foundProject.title) {
+          document.title = `${foundProject.title} | Daniel Vale`;
+        }
+        if (foundProject.thumbnail) {
+          let ogImg = document.querySelector('meta[property="og:image"]');
+          if (!ogImg) {
+            ogImg = document.createElement('meta');
+            ogImg.setAttribute('property', 'og:image');
+            document.head.appendChild(ogImg);
+          }
+          ogImg.setAttribute('content', foundProject.thumbnail);
+        }
 
         // Busca fotos salvas em IndexedDB caso existam mais imagens locais
         getGalleryFromIndexedDB(foundProject.id).then((cached) => {
@@ -222,7 +254,10 @@ export default function ProjectDetail() {
 
 
   const handleDirectDownload = async (url: string) => {
-    if (!url) return;
+    if (!url) {
+      alert("Os arquivos em alta resolução deste projeto estão sendo finalizados. Por favor, entre em contato via WhatsApp.");
+      return;
+    }
     setIsDownloading(true);
     try {
       await triggerDownload(url);
@@ -475,17 +510,29 @@ export default function ProjectDetail() {
                 {project.allowDownload !== false && (
                   <button
                     onClick={() => {
-                      if (project.downloadCode || !project.downloadUrl) {
+                      if (isDirectUnlocked || !project.downloadCode) {
+                        handleDirectDownload(project.downloadUrl || project.videoUrl || '');
+                      } else {
                         setShowDownloadModal(true);
                         setDownloadCodeInput('');
                         setDownloadError('');
-                      } else {
-                        handleDirectDownload(project.downloadUrl);
                       }
                     }}
-                    className="flex items-center gap-2 bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-950 text-xs font-semibold px-4 py-2 rounded-full transition-all duration-300 shadow-sm cursor-pointer"
+                    className={`flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-full transition-all duration-300 shadow-sm cursor-pointer ${
+                      isDirectUnlocked
+                        ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white'
+                        : 'bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-950'
+                    }`}
                   >
-                    <Download size={13} /> Download
+                    {isDirectUnlocked ? (
+                      <>
+                        <Lock size={13} className="text-white" /> Download Liberado
+                      </>
+                    ) : (
+                      <>
+                        <Download size={13} /> Download
+                      </>
+                    )}
                   </button>
                 )}
               </div>
@@ -533,7 +580,7 @@ export default function ProjectDetail() {
   }
 
   return (
-    <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 pb-24">
+    <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 pb-24 relative">
       {/* Background Cinematic Glow */}
       <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-neutral-950/[0.02] to-transparent pointer-events-none z-0" />
 
@@ -741,7 +788,7 @@ export default function ProjectDetail() {
               </motion.div>
             )}
 
-            {/* Botão de Download Minimalista na Cor Branca */}
+            {/* Botão de Download na barra de ações */}
             {project.allowDownload !== false && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
@@ -752,18 +799,31 @@ export default function ProjectDetail() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (project.downloadCode || !project.downloadUrl) {
+                    if (isDirectUnlocked || !project.downloadCode) {
+                      handleDirectDownload(project.downloadUrl || project.videoUrl || '');
+                    } else {
                       setShowDownloadModal(true);
                       setDownloadCodeInput('');
                       setDownloadError('');
-                    } else {
-                      handleDirectDownload(project.downloadUrl);
                     }
                   }}
-                  className="w-full bg-white hover:bg-neutral-50 active:scale-[0.98] text-neutral-900 text-xs font-semibold tracking-wider uppercase py-3.5 px-6 rounded-2xl shadow-xs border border-neutral-200/80 hover:border-neutral-400 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                  className={`w-full text-xs font-semibold tracking-wider uppercase py-3.5 px-6 rounded-2xl shadow-xs transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                    isDirectUnlocked
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20 active:scale-[0.98]'
+                      : 'bg-white hover:bg-neutral-50 active:scale-[0.98] text-neutral-900 border border-neutral-200/80 hover:border-neutral-400'
+                  }`}
                 >
-                  <Download size={14} className="text-neutral-700" />
-                  <span>Download</span>
+                  {isDirectUnlocked ? (
+                    <>
+                      <Lock size={15} className="text-white" />
+                      <span className="font-bold tracking-wide">Download Liberado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} className="text-neutral-700" />
+                      <span>Download</span>
+                    </>
+                  )}
                 </button>
               </motion.div>
             )}
@@ -1003,11 +1063,15 @@ export default function ProjectDetail() {
                 <button
                   onClick={() => {
                     if (downloadCodeInput === project.downloadCode) {
-                      if (!project.downloadUrl) {
+                      if (!project.downloadUrl && !project.videoUrl) {
                         setDownloadError('Link de download indisponível no momento.');
                         return;
                       }
-                      handleDirectDownload(project.downloadUrl);
+                      setIsDirectUnlocked(true);
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem(`unlocked_${project.id}`, 'true');
+                      }
+                      handleDirectDownload(project.downloadUrl || project.videoUrl || '');
                     } else {
                       setDownloadError('Código de acesso incorreto. Tente novamente.');
                     }

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, ArrowLeft, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram, Eye, EyeOff } from 'lucide-react';
+import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, ArrowLeft, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram, Eye, EyeOff, Send } from 'lucide-react';
 import { Project, Client, Note, Notification } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, auth } from "../firebase";
@@ -11,6 +11,7 @@ import { getProjects, sortProjectsByRecent, addProject, updateProject, deletePro
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
 import ProjectNoteModal from '../components/ProjectNoteModal';
+import ClientDeliveryModal from '../components/ClientDeliveryModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { NotesTab } from '../components/admin/NotesTab';
@@ -140,7 +141,7 @@ const iconMap: Record<string, any> = {
 };
 
 const NavItem = ({ icon: Icon, label, active = false, disabled = false, onClick, collapsed = false, draggable, onDragStart, onDragOver, onDrop }: { icon: any, label: string, active?: boolean, disabled?: boolean, onClick?: () => void, collapsed?: boolean, draggable?: boolean, onDragStart?: any, onDragOver?: any, onDrop?: any, key?: React.Key }) => (
-  <button 
+  <button
     draggable={draggable}
     onDragStart={onDragStart}
     onDragOver={onDragOver}
@@ -181,8 +182,8 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 
-const Card = React.memo(({ 
-  project, 
+const Card = React.memo(({
+  project,
   viewMode = 'grid',
   isSelected = false,
   isVisible = true,
@@ -194,8 +195,8 @@ const Card = React.memo(({
   onAddNote,
   onCopyLinkFeedback,
   onUpdateVisibility,
-}: { 
-  project: Project, 
+}: {
+  project: Project,
   viewMode?: 'grid' | 'list',
   isSelected?: boolean,
   isVisible?: boolean,
@@ -203,7 +204,7 @@ const Card = React.memo(({
   onToggleSelect?: (e: React.MouseEvent) => void,
   onToggleFavorite?: (e: React.MouseEvent) => void,
   onClick?: () => void,
-  onActionClick?: (action: 'review' | 'download' | 'delete', project: Project) => void,
+  onActionClick?: (action: 'review' | 'download' | 'delete' | 'clientDelivery', project: Project) => void,
   onAddNote?: (project: Project) => void,
   onCopyLinkFeedback?: (project: Project) => void,
   onUpdateVisibility?: (projectId: string, visibility: 'public' | 'unlisted') => void,
@@ -222,7 +223,12 @@ const Card = React.memo(({
 
   const handleCopyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/projeto/${project.id}`;
+    let code = project.downloadCode;
+    if (!code || code.trim() === '') {
+      code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      updateProject(project.id, { downloadCode: code, allowDownload: true });
+    }
+    const url = `${window.location.origin}/projeto/${project.id}?unlock=${code}`;
     const ok = await copyToClipboard(url);
     if (ok) {
       setCopiedLink(true);
@@ -232,10 +238,10 @@ const Card = React.memo(({
   };
 
   const logo = (
-    <img 
-      src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"} 
-      alt={project.title} 
-      className="w-full h-full object-cover" 
+    <img
+      src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
+      alt={project.title}
+      className="w-full h-full object-cover"
       loading="eager"
       decoding="async"
     />
@@ -243,178 +249,192 @@ const Card = React.memo(({
 
   if (viewMode === 'list') {
     return (
-      <div 
-        onClick={handleCardClick} 
+      <div
+        onClick={handleCardClick}
         className={`${!isVisible ? 'hidden' : ''} bg-white dark:bg-[#111111] border ${isSelected ? 'border-black dark:border-white' : 'border-gray-200 dark:border-[#1f1f1f]'} rounded-2xl p-4 flex items-center relative hover:bg-gray-50 dark:hover:bg-[#161616] transition-colors cursor-pointer group shadow-sm`}
       >
-         <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl overflow-hidden shadow-inner bg-gray-100 dark:bg-[#1a1a1a] mr-4">
-            {logo}
-         </div>
-         <div className="flex-1">
-           <div className="flex items-center gap-2">
-             <h3 className="text-[15px] font-bold text-gray-900 dark:text-white mb-0.5 leading-tight">{project.title}</h3>
-             {isFavorite && (
-               <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 text-[10px] font-bold flex items-center gap-1 shadow-xs">
-                 <Star size={9} className="fill-amber-500 text-amber-500" /> Destaque
-               </span>
-             )}
-           </div>
-           <p className="text-[13px] text-gray-500 dark:text-[#777] font-medium">{project.category}</p>
-         </div>
-         <div className="flex items-center gap-2.5 controls">
-           {/* Copiar Link do Projeto (Corrente) */}
-           <button 
-             type="button"
-             onClick={handleCopyLink}
-             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-               copiedLink 
-                 ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30' 
-                 : 'text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] border border-transparent'
-             }`}
-             title={copiedLink ? "Link copiado!" : "Copiar link do projeto"}
-           >
-             {copiedLink ? <Check size={13} className="text-emerald-500" strokeWidth={2.5} /> : <Link size={13} strokeWidth={2.5} />}
-             <span className="text-[11px] font-medium">{copiedLink ? 'Copiado!' : 'Link'}</span>
-           </button>
+        <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl overflow-hidden shadow-inner bg-gray-100 dark:bg-[#1a1a1a] mr-4">
+          {logo}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[15px] font-bold text-gray-900 dark:text-white mb-0.5 leading-tight">{project.title}</h3>
+            {isFavorite && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                <Star size={9} className="fill-amber-500 text-amber-500" /> Destaque
+              </span>
+            )}
+          </div>
+          <p className="text-[13px] text-gray-500 dark:text-[#777] font-medium">{project.category}</p>
+        </div>
+        <div className="flex items-center gap-2.5 controls">
+          {/* Copiar Link do Projeto (Corrente) */}
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${copiedLink
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30'
+                : 'text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] border border-transparent'
+              }`}
+            title={copiedLink ? "Link copiado!" : "Copiar link do projeto"}
+          >
+            {copiedLink ? <Check size={13} className="text-emerald-500" strokeWidth={2.5} /> : <Link size={13} strokeWidth={2.5} />}
+            <span className="text-[11px] font-medium">{copiedLink ? 'Copiado!' : 'Link'}</span>
+          </button>
 
-           {/* Adicionar / Ver Notas (Papel) */}
-           <button 
-             type="button"
-             onClick={(e) => {
-               e.stopPropagation();
-               onAddNote?.(project);
-             }}
-             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] transition-colors cursor-pointer border border-transparent"
-             title="Adicionar / Ver Notas do Projeto"
-           >
-             <FileText size={13} strokeWidth={2.5} />
-             {notesCount > 0 ? (
-               <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">{notesCount}</span>
-             ) : (
-               <span className="text-[11px] font-medium">Nota</span>
-             )}
-           </button>
+          {/* Adicionar / Ver Notas (Papel) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddNote?.(project);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] transition-colors cursor-pointer border border-transparent"
+            title="Adicionar / Ver Notas do Projeto"
+          >
+            <FileText size={13} strokeWidth={2.5} />
+            {notesCount > 0 ? (
+              <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">{notesCount}</span>
+            ) : (
+              <span className="text-[11px] font-medium">Nota</span>
+            )}
+          </button>
 
-           <div className="h-4 w-px bg-gray-200 dark:bg-[#333] mx-1" />
+          {/* Gerar Link para Cliente (Entrega com Link Desbloqueado + Avaliação) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onActionClick?.('clientDelivery', project);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all cursor-pointer shadow-xs"
+            title="Gerar Link de Entrega para o Cliente (desbloqueado)"
+          >
+            <Link size={12} strokeWidth={2.5} />
+            <span className="text-[11px] font-bold">Entrega</span>
+          </button>
 
-           {/* Dropmenu de Visibilidade (Público / Não listado) */}
-           <div className="relative">
-             <button 
-               type="button"
-               onClick={(e) => {
-                 e.stopPropagation();
-                 setShowVisibilityMenu(!showVisibilityMenu);
-                 setShowMenu(false);
-               }}
-               className={`h-7 px-2.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer border text-xs font-semibold ${
-                 isUnlisted 
-                   ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 shadow-xs' 
-                   : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-500/40 shadow-xs'
-               }`}
-               title={isUnlisted ? "Não listado (Apenas com link)" : "Público (Visível na página principal)"}
-             >
-               {isUnlisted ? <EyeOff size={12} strokeWidth={2.5} /> : <Globe size={12} strokeWidth={2.5} />}
-               <span className="text-[11px]">{isUnlisted ? 'Não listado' : 'Público'}</span>
-             </button>
+          <div className="h-4 w-px bg-gray-200 dark:bg-[#333] mx-1" />
 
-             {showVisibilityMenu && (
-               <>
-                 <div 
-                   className="fixed inset-0 z-[65]" 
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     setShowVisibilityMenu(false);
-                   }} 
-                 />
-                 <div className="absolute right-0 top-8 w-52 bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333] rounded-2xl shadow-2xl py-2 z-[70] controls overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                   <div className="px-3.5 py-1.5 border-b border-gray-100 dark:border-[#2a2a2a] mb-1">
-                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Visibilidade</span>
-                   </div>
+          {/* Dropmenu de Visibilidade (Público / Não listado) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowVisibilityMenu(!showVisibilityMenu);
+                setShowMenu(false);
+              }}
+              className={`h-7 px-2.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer border text-xs font-semibold ${isUnlisted
+                  ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 shadow-xs'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-500/40 shadow-xs'
+                }`}
+              title={isUnlisted ? "Não listado (Apenas com link)" : "Público (Visível na página principal)"}
+            >
+              {isUnlisted ? <EyeOff size={12} strokeWidth={2.5} /> : <Globe size={12} strokeWidth={2.5} />}
+              <span className="text-[11px]">{isUnlisted ? 'Não listado' : 'Público'}</span>
+            </button>
 
-                   <button
-                     type="button"
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       setShowVisibilityMenu(false);
-                       onUpdateVisibility?.(project.id, 'public');
-                     }}
-                     className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                       !isUnlisted 
-                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' 
-                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282828]'
-                     }`}
-                   >
-                     <div className="flex items-center gap-2">
-                       <Globe size={14} className={!isUnlisted ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'} />
-                       <span className="font-bold">Público</span>
-                     </div>
-                     {!isUnlisted && <Check size={14} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} />}
-                   </button>
+            {showVisibilityMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-[65]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowVisibilityMenu(false);
+                  }}
+                />
+                <div className="absolute right-0 top-8 w-52 bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333] rounded-2xl shadow-2xl py-2 z-[70] controls overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3.5 py-1.5 border-b border-gray-100 dark:border-[#2a2a2a] mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Visibilidade</span>
+                  </div>
 
-                   <button
-                     type="button"
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       setShowVisibilityMenu(false);
-                       onUpdateVisibility?.(project.id, 'unlisted');
-                     }}
-                     className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                       isUnlisted 
-                         ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' 
-                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282828]'
-                     }`}
-                   >
-                     <div className="flex items-center gap-2">
-                       <EyeOff size={14} className={isUnlisted ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'} />
-                       <span className="font-bold">Não listado</span>
-                     </div>
-                     {isUnlisted && <Check size={14} className="text-amber-600 dark:text-amber-400" strokeWidth={2.5} />}
-                   </button>
-                 </div>
-               </>
-             )}
-           </div>
-           <button 
-             onClick={onToggleFavorite}
-             className="w-8 h-8 rounded-full border border-gray-200 dark:border-[#222] flex items-center justify-center bg-gray-50 dark:bg-[#1a1a1a]"
-           >
-             <Star size={14} className={`${isFavorite ? 'fill-[#EAB308] text-[#EAB308]' : 'text-gray-400 dark:text-[#555] hover:text-gray-600 dark:hover:text-[#777]'} transition-colors`} />
-           </button>
-           <div className="relative controls">
-             <button onClick={() => setShowMenu(!showMenu)} className="text-gray-400 dark:text-[#555] hover:text-gray-600 dark:hover:text-[#777] transition-colors">
-               <MoreHorizontal size={20} />
-             </button>
-             {showMenu && (
-               <div className="absolute right-0 top-6 w-48 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg py-1 z-[60]">
-                 <button onClick={() => { setShowMenu(false); onActionClick?.('review', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#222] transition-colors">Gerar link de avaliação</button>
-                 <button onClick={() => { setShowMenu(false); onActionClick?.('download', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#222] transition-colors">Gerar código de download</button>
-                 <div className="border-t border-gray-100 dark:border-[#2a2a2a] my-1" />
-                 <button onClick={() => { setShowMenu(false); onActionClick?.('delete', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2">
-                   <Trash2 size={13} />
-                   Excluir projeto
-                 </button>
-               </div>
-             )}
-           </div>
-         </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowVisibilityMenu(false);
+                      onUpdateVisibility?.(project.id, 'public');
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${!isUnlisted
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282828]'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Globe size={14} className={!isUnlisted ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'} />
+                      <span className="font-bold">Público</span>
+                    </div>
+                    {!isUnlisted && <Check size={14} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowVisibilityMenu(false);
+                      onUpdateVisibility?.(project.id, 'unlisted');
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${isUnlisted
+                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282828]'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <EyeOff size={14} className={isUnlisted ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'} />
+                      <span className="font-bold">Não listado</span>
+                    </div>
+                    {isUnlisted && <Check size={14} className="text-amber-600 dark:text-amber-400" strokeWidth={2.5} />}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          <button
+            onClick={onToggleFavorite}
+            className="w-8 h-8 rounded-full border border-gray-200 dark:border-[#222] flex items-center justify-center bg-gray-50 dark:bg-[#1a1a1a]"
+          >
+            <Star size={14} className={`${isFavorite ? 'fill-[#EAB308] text-[#EAB308]' : 'text-gray-400 dark:text-[#555] hover:text-gray-600 dark:hover:text-[#777]'} transition-colors`} />
+          </button>
+          <div className="relative controls">
+            <button onClick={() => setShowMenu(!showMenu)} className="text-gray-400 dark:text-[#555] hover:text-gray-600 dark:hover:text-[#777] transition-colors">
+              <MoreHorizontal size={20} />
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-6 w-52 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg py-1 z-[60]">
+                <button onClick={() => { setShowMenu(false); onActionClick?.('clientDelivery', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2 cursor-pointer">
+                  <Link size={13} />
+                  Gerar link para cliente
+                </button>
+                <button onClick={() => { setShowMenu(false); onActionClick?.('review', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#222] transition-colors">Gerar link de avaliação</button>
+                <button onClick={() => { setShowMenu(false); onActionClick?.('download', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#222] transition-colors">Gerar código de download</button>
+                <div className="border-t border-gray-100 dark:border-[#2a2a2a] my-1" />
+                <button onClick={() => { setShowMenu(false); onActionClick?.('delete', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2">
+                  <Trash2 size={13} />
+                  Excluir projeto
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
-  
+
   return (
-    <div 
-      onClick={handleCardClick} 
+    <div
+      onClick={handleCardClick}
       className={`${!isVisible ? 'hidden' : ''} bg-white dark:bg-[#161616] border ${isSelected ? 'border-black dark:border-white' : 'border-gray-200 dark:border-[#222]'} rounded-[20px] p-3 flex flex-col relative hover:bg-gray-50 dark:hover:bg-[#1c1c1c] transition-colors cursor-pointer group shadow-sm`}
     >
-      
+
       {/* Thumbnail area */}
       <div className="w-full aspect-video mb-2.5 rounded-xl overflow-hidden bg-[#222] relative">
-        <img 
-           src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"} 
-           alt={project.title} 
-           className="w-full h-full object-cover" 
-           loading="eager"
-           decoding="async"
+        <img
+          src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
+          alt={project.title}
+          className="w-full h-full object-cover"
+          loading="eager"
+          decoding="async"
         />
         {isFavorite && (
           <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-amber-400/40 text-amber-400 text-[10px] font-bold flex items-center gap-1 shadow-md">
@@ -423,11 +443,11 @@ const Card = React.memo(({
           </div>
         )}
       </div>
-      
+
       {/* Content Area */}
       <div className="flex flex-col px-1">
         <h3 className="text-[13px] font-bold text-gray-900 dark:text-white mb-2 leading-tight truncate">{project.title}</h3>
-        
+
         {/* Labels/Tags Row */}
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#1e293b]/60 dark:text-[#60a5fa] dark:border-[#334155] text-[10px] font-semibold transition-colors">
@@ -454,14 +474,13 @@ const Card = React.memo(({
           {/* Left actions: Corrente (copiar link) e Papel (adicionar nota). Ícone de check removido conforme solicitado */}
           <div className="flex items-center gap-1.5 text-gray-500 dark:text-[#888]">
             {/* Corrente: Copiar link do projeto */}
-            <button 
+            <button
               type="button"
               onClick={handleCopyLink}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                copiedLink 
-                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30' 
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${copiedLink
+                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30'
                   : 'hover:bg-gray-100 dark:hover:bg-[#222] hover:text-black dark:hover:text-white border border-transparent'
-              }`}
+                }`}
               title={copiedLink ? "Link copiado!" : "Copiar link do projeto"}
             >
               {copiedLink ? (
@@ -478,7 +497,7 @@ const Card = React.memo(({
             </button>
 
             {/* Papel: Adicionar Nota ao projeto */}
-            <button 
+            <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
@@ -494,24 +513,37 @@ const Card = React.memo(({
                 <span className="text-[11px] font-medium hidden xs:inline">Nota</span>
               )}
             </button>
+
+            {/* Gerar Link para Cliente (Entrega com Link Desbloqueado + Avaliação) */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onActionClick?.('clientDelivery', project);
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all cursor-pointer shadow-xs"
+              title="Gerar Link de Entrega para o Cliente (desbloqueado)"
+            >
+              <Link size={11} strokeWidth={2.5} />
+              <span className="text-[11px] font-bold">Entrega</span>
+            </button>
           </div>
-          
+
           {/* Right actions (Light & Dark adaptive round buttons) */}
           <div className="flex items-center gap-2 relative">
             {/* Dropmenu de Visibilidade (Público / Não listado) */}
             <div className="relative">
-              <button 
+              <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowVisibilityMenu(!showVisibilityMenu);
                   setShowMenu(false);
                 }}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer border ${
-                  isUnlisted 
-                    ? 'bg-amber-50 text-amber-600 border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 shadow-xs' 
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer border ${isUnlisted
+                    ? 'bg-amber-50 text-amber-600 border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 shadow-xs'
                     : 'bg-emerald-50 text-emerald-600 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-500/40 shadow-xs'
-                }`}
+                  }`}
                 title={isUnlisted ? "Não listado (Apenas com link)" : "Público (Visível na página principal)"}
               >
                 {isUnlisted ? <EyeOff size={12} strokeWidth={2.5} /> : <Globe size={12} strokeWidth={2.5} />}
@@ -519,12 +551,12 @@ const Card = React.memo(({
 
               {showVisibilityMenu && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-[65]" 
+                  <div
+                    className="fixed inset-0 z-[65]"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowVisibilityMenu(false);
-                    }} 
+                    }}
                   />
                   <div className="absolute right-0 bottom-9 w-52 bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333] rounded-2xl shadow-2xl py-2 z-[70] controls overflow-hidden animate-in fade-in zoom-in-95 duration-150">
                     <div className="px-3.5 py-1.5 border-b border-gray-100 dark:border-[#2a2a2a] mb-1">
@@ -538,11 +570,10 @@ const Card = React.memo(({
                         setShowVisibilityMenu(false);
                         onUpdateVisibility?.(project.id, 'public');
                       }}
-                      className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                        !isUnlisted 
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' 
+                      className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${!isUnlisted
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282828]'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <Globe size={14} className={!isUnlisted ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'} />
@@ -561,11 +592,10 @@ const Card = React.memo(({
                         setShowVisibilityMenu(false);
                         onUpdateVisibility?.(project.id, 'unlisted');
                       }}
-                      className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                        isUnlisted 
-                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' 
+                      className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${isUnlisted
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282828]'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <EyeOff size={14} className={isUnlisted ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'} />
@@ -580,35 +610,38 @@ const Card = React.memo(({
                 </>
               )}
             </div>
-            <button 
+            <button
               onClick={onToggleFavorite}
-              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                isFavorite 
-                  ? 'bg-amber-50 text-amber-500 border border-amber-200 dark:bg-[#2a2415] dark:text-[#eab308] dark:border-amber-500/20' 
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${isFavorite
+                  ? 'bg-amber-50 text-amber-500 border border-amber-200 dark:bg-[#2a2415] dark:text-[#eab308] dark:border-amber-500/20'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-black border border-gray-200/80 dark:bg-[#222] dark:hover:bg-[#333] dark:text-[#888] dark:hover:text-[#ccc] dark:border-transparent'
-              }`}
+                }`}
               title="Favoritar"
             >
               <Star size={12} className={isFavorite ? "fill-current" : ""} />
             </button>
-            <button 
+            <button
               onClick={() => setShowMenu(!showMenu)}
               className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-black border border-gray-200/80 dark:bg-[#222] dark:hover:bg-[#333] dark:text-[#888] dark:hover:text-[#ccc] dark:border-transparent flex items-center justify-center transition-all cursor-pointer"
               title="Mais opções"
             >
               <MoreHorizontal size={12} strokeWidth={3} />
             </button>
-            
+
             {showMenu && (
-               <div className="absolute right-0 bottom-10 w-48 bg-white dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-xl shadow-xl py-1 z-[60] controls overflow-hidden">
-                 <button onClick={() => { setShowMenu(false); onActionClick?.('review', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#333] transition-colors cursor-pointer">Gerar link de avaliação</button>
-                 <button onClick={() => { setShowMenu(false); onActionClick?.('download', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#333] transition-colors cursor-pointer">Gerar código de download</button>
-                 <div className="border-t border-gray-100 dark:border-[#333] my-1" />
-                 <button onClick={() => { setShowMenu(false); onActionClick?.('delete', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2 cursor-pointer">
-                   <Trash2 size={13} />
-                   Excluir projeto
-                 </button>
-               </div>
+              <div className="absolute right-0 bottom-10 w-52 bg-white dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-xl shadow-xl py-1 z-[60] controls overflow-hidden">
+                <button onClick={() => { setShowMenu(false); onActionClick?.('clientDelivery', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2 cursor-pointer">
+                  <Link size={13} />
+                  Gerar link para cliente
+                </button>
+                <button onClick={() => { setShowMenu(false); onActionClick?.('review', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#333] transition-colors cursor-pointer">Gerar link de avaliação</button>
+                <button onClick={() => { setShowMenu(false); onActionClick?.('download', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#333] transition-colors cursor-pointer">Gerar código de download</button>
+                <div className="border-t border-gray-100 dark:border-[#333] my-1" />
+                <button onClick={() => { setShowMenu(false); onActionClick?.('delete', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2 cursor-pointer">
+                  <Trash2 size={13} />
+                  Excluir projeto
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -645,14 +678,14 @@ export default function Admin() {
   const [projectCategoryFilter, setProjectCategoryFilter] = useState<'Todas' | 'Imobiliário' | 'Publicitário' | 'Eventos' | 'Institucional'>('Todas');
   const [newProjectCategory, setNewProjectCategory] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  
+
   useEffect(() => {
     const loadNotifs = () => setNotifications(getNotifications());
     loadNotifs();
     window.addEventListener('notificationsUpdated', loadNotifs as any);
     return () => window.removeEventListener('notificationsUpdated', loadNotifs as any);
   }, []);
-  
+
   const unreadCount = notifications.filter(n => !n.read).length;
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -675,8 +708,8 @@ export default function Admin() {
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [clientSaveFeedback, setClientSaveFeedback] = useState<string | null>(null);
   const clientFileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [actionModal, setActionModal] = useState<'review' | 'download' | null>(null);
+
+  const [actionModal, setActionModal] = useState<'review' | 'download' | 'clientDelivery' | null>(null);
   const [actionProject, setActionProject] = useState<Project | null>(null);
 
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
@@ -741,7 +774,7 @@ export default function Admin() {
     return () => window.removeEventListener("clients-updated", handleClientsUpdate);
   }, []);
 
-  const handleActionClick = (action: 'review' | 'download' | 'delete', project: Project) => {
+  const handleActionClick = (action: 'review' | 'download' | 'delete' | 'clientDelivery', project: Project) => {
     if (action === 'delete') {
       setProjectToDelete(project);
       setIsDeleteModalOpen(true);
@@ -770,14 +803,14 @@ export default function Admin() {
     }
   };
 
-  
+
   // Theme & Language state
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [lang, setLang] = useState<'pt' | 'en'>('pt');
-  
+
   // Navbar state
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
-  
+
   // Popups state
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -855,7 +888,7 @@ export default function Admin() {
     }
     return new Set(defaultMenuItems.map(m => m.id));
   });
-  
+
   const draggedItemIdRef = useRef<string | null>(null);
   const dragOverItemIdRef = useRef<string | null>(null);
 
@@ -920,7 +953,7 @@ export default function Admin() {
     setEditingProject(null);
   };
 
-  
+
   const [isSyncingFirestore, setIsSyncingFirestore] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ success: boolean; message: string; code?: string } | null>(null);
 
@@ -999,7 +1032,7 @@ export default function Admin() {
         await new Promise<void>((resolve) => {
           uploadTask.on(
             'state_changed',
-            () => {},
+            () => { },
             (error) => {
               console.warn("Storage upload failed, falling back to local image data:", error);
               if (clientPhotoPreview) {
@@ -1082,7 +1115,7 @@ export default function Admin() {
 
   useEffect(() => {
     setRealProjects(getProjects());
-    
+
     const handleUpdate = () => {
       setRealProjects(getProjects());
     };
@@ -1117,7 +1150,7 @@ export default function Admin() {
       const newItems = [...menuItems];
       const draggedIndex = newItems.findIndex(item => item.id === draggedItemIdRef.current);
       const overIndex = newItems.findIndex(item => item.id === dragOverItemIdRef.current);
-      
+
       if (draggedIndex !== -1 && overIndex !== -1) {
         const [draggedItem] = newItems.splice(draggedIndex, 1);
         newItems.splice(overIndex, 0, draggedItem);
@@ -1155,11 +1188,11 @@ export default function Admin() {
   // Filtered projects for the projects view (mais recentes primeiro)
   const filteredProjects = sortProjectsByRecent(realProjects).filter(p => {
     const q = searchQuery.trim().toLowerCase();
-    const matchesSearch = !q || 
+    const matchesSearch = !q ||
       p.title.toLowerCase().includes(q) ||
       ((p as any).client || p.clientId || '').toLowerCase().includes(q) ||
       (p.category || '').toLowerCase().includes(q);
-    
+
     if (!matchesSearch) return false;
     if (projectCategoryFilter === 'Todas') return true;
     if (projectCategoryFilter === 'Imobiliário') return (p.category || '').toLowerCase().includes('imobil');
@@ -1232,7 +1265,7 @@ export default function Admin() {
 
   return (
     <div className={`flex h-screen bg-gray-100 dark:bg-[#050505] text-gray-900 dark:text-[#E5E5E5] font-sans overflow-hidden w-full relative z-[100] fixed inset-0`}>
-      
+
 
 
       {/* Sidebar */}
@@ -1246,7 +1279,7 @@ export default function Admin() {
           <div className="flex items-center gap-2 relative">
             {!isSidebarCollapsed && (
               <div ref={menuConfigRef} className="relative">
-                <button 
+                <button
                   onClick={() => setShowMenuConfig(!showMenuConfig)}
                   className="text-gray-500 dark:text-[#666] hover:text-black dark:hover:text-white transition-colors bg-gray-100 dark:bg-[#111] p-1.5 rounded-md border border-gray-200 dark:border-[#222]"
                   title="Configurar Menus"
@@ -1260,9 +1293,9 @@ export default function Admin() {
                     <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
                       {menuItems.map(item => (
                         <label key={item.id} className="flex items-center gap-2 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
-                            checked={visibleMenuIds.has(item.id)} 
+                          <input
+                            type="checkbox"
+                            checked={visibleMenuIds.has(item.id)}
                             onChange={() => toggleMenuVisibility(item.id)}
                             className="rounded border-gray-300 dark:border-[#444] text-black dark:text-white bg-gray-100 dark:bg-[#111] accent-black dark:accent-white"
                           />
@@ -1274,11 +1307,11 @@ export default function Admin() {
                 )}
               </div>
             )}
-            <button 
+            <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               className="text-gray-500 dark:text-[#666] hover:text-black dark:hover:text-white transition-colors bg-gray-100 dark:bg-[#111] p-1.5 rounded-md border border-gray-200 dark:border-[#222]"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={!isSidebarCollapsed ? 'rotate-180 transition-transform' : 'transition-transform'}><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={!isSidebarCollapsed ? 'rotate-180 transition-transform' : 'transition-transform'}><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>
             </button>
           </div>
         </div>
@@ -1290,21 +1323,21 @@ export default function Admin() {
             <div className="space-y-1">
               {menuItems.filter(item => item.section === 'main' && visibleMenuIds.has(item.id)).map((item) => {
                 const isProjects = item.id === 'projects';
-                
+
                 return (
                   <div key={item.id} className="w-full">
                     <div className="relative flex items-center">
-                      <NavItem 
-                        icon={iconMap[item.iconName]} 
-                        label={(t as any)[item.labelKey] || item.labelKey} 
-                        active={activeTab === item.id && !editingProject} 
+                      <NavItem
+                        icon={iconMap[item.iconName]}
+                        label={(t as any)[item.labelKey] || item.labelKey}
+                        active={activeTab === item.id && !editingProject}
                         disabled={item.disabled}
                         onClick={() => {
                           setActiveTab(item.id);
                           setIsCreating(false);
                           setEditingProject(null);
                           if (item.id === 'projects') setCurrentPage(1);
-                        }} 
+                        }}
                         collapsed={isSidebarCollapsed}
                         draggable={!isSidebarCollapsed}
                         onDragStart={() => (draggedItemIdRef.current = item.id)}
@@ -1370,11 +1403,10 @@ export default function Admin() {
                                     setEditingProject(proj);
                                     setIsCreating(false);
                                   }}
-                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${
-                                    editingProject?.id === proj.id 
-                                      ? 'bg-blue-500/15 text-blue-500 font-bold' 
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
+                                      ? 'bg-blue-500/15 text-blue-500 font-bold'
                                       : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
-                                  }`}
+                                    }`}
                                   title={`PROJETOS > IMOBILIÁRIO > ${proj.title}`}
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
@@ -1430,11 +1462,10 @@ export default function Admin() {
                                     setEditingProject(proj);
                                     setIsCreating(false);
                                   }}
-                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${
-                                    editingProject?.id === proj.id 
-                                      ? 'bg-amber-500/15 text-amber-500 font-bold' 
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
+                                      ? 'bg-amber-500/15 text-amber-500 font-bold'
                                       : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
-                                  }`}
+                                    }`}
                                   title={`PROJETOS > PUBLICIDADE > ${proj.title}`}
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
@@ -1490,11 +1521,10 @@ export default function Admin() {
                                     setEditingProject(proj);
                                     setIsCreating(false);
                                   }}
-                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${
-                                    editingProject?.id === proj.id 
-                                      ? 'bg-emerald-500/15 text-emerald-500 font-bold' 
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
+                                      ? 'bg-emerald-500/15 text-emerald-500 font-bold'
                                       : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
-                                  }`}
+                                    }`}
                                   title={`PROJETOS > EVENTOS > ${proj.title}`}
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
@@ -1520,16 +1550,16 @@ export default function Admin() {
             {isSidebarCollapsed && <div className="h-4"></div>}
             <div className="space-y-1">
               {menuItems.filter(item => item.section === 'more' && visibleMenuIds.has(item.id)).map((item) => (
-                <NavItem key={item.id} 
-                  icon={iconMap[item.iconName]} 
-                  label={(t as any)[item.labelKey] || item.labelKey} 
-                  active={activeTab === item.id} 
+                <NavItem key={item.id}
+                  icon={iconMap[item.iconName]}
+                  label={(t as any)[item.labelKey] || item.labelKey}
+                  active={activeTab === item.id}
                   disabled={item.disabled}
                   onClick={() => {
                     setActiveTab(item.id);
                     setIsCreating(false);
                     setEditingProject(null);
-                  }} 
+                  }}
                   collapsed={isSidebarCollapsed}
                   draggable={!isSidebarCollapsed}
                   onDragStart={() => (draggedItemIdRef.current = item.id)}
@@ -1541,35 +1571,35 @@ export default function Admin() {
           </div>
         </div>
       </aside>
-      
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-gray-100 dark:bg-[#050505]">
-        
+
         {/* Top Header Collapsible wrapper */}
         {isNavbarCollapsed ? (
           <div className="flex justify-center -mb-4 z-30 relative top-0">
-             <button onClick={() => setIsNavbarCollapsed(false)} className="bg-white dark:bg-[#1a1a1a] border border-t-0 border-gray-200 dark:border-[#222] px-4 py-1 rounded-b-xl shadow-md text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white transition-colors">
-               <ChevronDown size={16} />
-             </button>
+            <button onClick={() => setIsNavbarCollapsed(false)} className="bg-white dark:bg-[#1a1a1a] border border-t-0 border-gray-200 dark:border-[#222] px-4 py-1 rounded-b-xl shadow-md text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white transition-colors">
+              <ChevronDown size={16} />
+            </button>
           </div>
         ) : (
           <header className="h-[64px] flex-shrink-0 border-b border-gray-200 dark:border-[#1a1a1a] flex items-center justify-between px-4 md:px-8 bg-white dark:bg-[#0a0a0a] transition-all relative z-30">
-            
+
             <div className="flex items-center gap-6">
               <div className="relative hidden sm:block">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#777]" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                   }}
-                  placeholder={t.search} 
-                  className="w-[150px] lg:w-[220px] bg-gray-100 dark:bg-[#111111] border border-gray-200 dark:border-[#222] text-[13px] text-gray-900 dark:text-white rounded-full pl-9 pr-4 py-2 focus:outline-none focus:border-gray-300 dark:focus:border-[#444] transition-colors" 
+                  placeholder={t.search}
+                  className="w-[150px] lg:w-[220px] bg-gray-100 dark:bg-[#111111] border border-gray-200 dark:border-[#222] text-[13px] text-gray-900 dark:text-white rounded-full pl-9 pr-4 py-2 focus:outline-none focus:border-gray-300 dark:focus:border-[#444] transition-colors"
                 />
               </div>
-  
+
               <nav className="hidden md:flex items-center gap-2 text-[13px] font-semibold text-gray-500 dark:text-[#888]">
                 <button
                   onClick={() => {
@@ -1591,16 +1621,16 @@ export default function Admin() {
                 )}
               </nav>
             </div>
-  
+
             <div className="flex items-center gap-2 md:gap-4 relative">
               <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-gray-500 dark:text-[#777] hover:text-gray-900 dark:hover:text-white transition-colors">
                 {theme === 'dark' ? <Sun size={18} strokeWidth={2} /> : <Moon size={18} strokeWidth={2} />}
               </button>
-              
+
               <button className="text-gray-500 dark:text-[#777] hover:text-gray-900 dark:hover:text-white transition-colors hidden sm:block">
                 <Settings size={18} strokeWidth={2} />
               </button>
-              
+
               {/* Notification Button */}
               <div className="relative" ref={notificationsRef}>
                 <button onClick={() => {
@@ -1617,7 +1647,7 @@ export default function Admin() {
                     </span>
                   )}
                 </button>
-                
+
                 {showNotifications && (
                   <div className="absolute right-0 top-10 w-64 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg p-4 z-[60]">
                     <h4 className="text-[13px] font-bold text-black dark:text-white mb-3">Notificações</h4>
@@ -1643,19 +1673,19 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-              
+
               <div className="relative" ref={profileMenuRef}>
-                <div 
+                <div
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className="w-8 h-8 rounded-full bg-gray-200 dark:bg-[#222] border border-gray-300 dark:border-[#333] overflow-hidden ml-1 flex-shrink-0 cursor-pointer"
                   title={currentUser?.email || "Admin"}
                 >
-                   <img 
-                     src={currentUser?.photoURL || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150&h=150"} 
-                     alt="User Avatar" 
-                     className="w-full h-full object-cover" 
-                     referrerPolicy="no-referrer"
-                   />
+                  <img
+                    src={currentUser?.photoURL || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150&h=150"}
+                    alt="User Avatar"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
 
                 {showProfileMenu && (
@@ -1679,7 +1709,7 @@ export default function Admin() {
 
                     <div className="border-t border-gray-100 dark:border-[#2a2a2a] my-0.5" />
 
-                    <button 
+                    <button
                       onClick={async () => {
                         setShowProfileMenu(false);
                         await signOut(auth);
@@ -1692,7 +1722,7 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-              
+
               <button onClick={() => setIsNavbarCollapsed(true)} className="w-7 h-7 rounded-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-[#222] transition-colors ml-1 hidden sm:flex">
                 <X size={14} strokeWidth={2.5} />
               </button>
@@ -1703,7 +1733,7 @@ export default function Admin() {
         {/* Normal Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative z-10">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-10 pt-10 flex-1 w-full flex flex-col overflow-y-auto no-scrollbar">
-            
+
             {(isCreating || editingProject) ? (
               <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-200 dark:border-[#222] p-6 sm:p-8 flex-1 shadow-sm relative mb-6">
                 {/* Hierarchical Breadcrumb Header requested by user: PROJETOS > IMOBILIÁRIO > CASA ALPHAVILLE */}
@@ -1727,10 +1757,10 @@ export default function Admin() {
                   </button>
                 </div>
 
-                <ProjectForm 
-                  project={editingProject} 
+                <ProjectForm
+                  project={editingProject}
                   initialCategory={newProjectCategory || editingProject?.category}
-                  onSave={handleSaveProject} 
+                  onSave={handleSaveProject}
                   onCancel={() => {
                     setIsCreating(false);
                     setEditingProject(null);
@@ -1750,24 +1780,24 @@ export default function Admin() {
               </div>
             ) : (
               <>
-            {/* Firestore Permission Warning Banner */}
-            {firestorePermissionError && (
-              <div className="mb-6 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex flex-col items-start justify-between gap-4 shadow-sm">
-                <div className="text-[13px] space-y-2 flex-1 w-full">
-                  <div className="font-bold flex items-center gap-2 text-base text-amber-700 dark:text-amber-300">
-                    <AlertCircle size={18} />
-                    Liberar Gravação no Firebase Console (Cloud Firestore)
-                  </div>
-                  <p className="text-gray-700 dark:text-[#ccc] leading-relaxed">
-                    O Firebase Console bloqueou as gravações por falta de permissão (<code className="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-black dark:text-white font-mono text-xs">PERMISSION_DENIED</code>). Para que todos os clientes, projetos e mensagens entrem no banco de dados, siga estes 3 passos simples:
-                  </p>
-                  <ol className="list-decimal list-inside space-y-1 text-gray-700 dark:text-[#bbb] pl-1 font-medium text-xs">
-                    <li>Na tela do Firebase Console aberta, clique na aba <strong className="text-black dark:text-white">Regras</strong> (ao lado de <em>Dados</em>).</li>
-                    <li>Substitua o conteúdo pelo código abaixo e clique em <strong className="text-black dark:text-white">Publicar</strong>.</li>
-                    <li>Volte aqui e clique em <strong className="text-black dark:text-white">"Sincronizar Tudo"</strong>.</li>
-                  </ol>
-                  <div className="p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-[11px] text-gray-800 dark:text-gray-200 overflow-x-auto select-all border border-black/10 dark:border-white/10">
-{`rules_version = '2';
+                {/* Firestore Permission Warning Banner */}
+                {firestorePermissionError && (
+                  <div className="mb-6 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex flex-col items-start justify-between gap-4 shadow-sm">
+                    <div className="text-[13px] space-y-2 flex-1 w-full">
+                      <div className="font-bold flex items-center gap-2 text-base text-amber-700 dark:text-amber-300">
+                        <AlertCircle size={18} />
+                        Liberar Gravação no Firebase Console (Cloud Firestore)
+                      </div>
+                      <p className="text-gray-700 dark:text-[#ccc] leading-relaxed">
+                        O Firebase Console bloqueou as gravações por falta de permissão (<code className="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-black dark:text-white font-mono text-xs">PERMISSION_DENIED</code>). Para que todos os clientes, projetos e mensagens entrem no banco de dados, siga estes 3 passos simples:
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1 text-gray-700 dark:text-[#bbb] pl-1 font-medium text-xs">
+                        <li>Na tela do Firebase Console aberta, clique na aba <strong className="text-black dark:text-white">Regras</strong> (ao lado de <em>Dados</em>).</li>
+                        <li>Substitua o conteúdo pelo código abaixo e clique em <strong className="text-black dark:text-white">Publicar</strong>.</li>
+                        <li>Volte aqui e clique em <strong className="text-black dark:text-white">"Sincronizar Tudo"</strong>.</li>
+                      </ol>
+                      <div className="p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-[11px] text-gray-800 dark:text-gray-200 overflow-x-auto select-all border border-black/10 dark:border-white/10">
+                        {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {
@@ -1775,370 +1805,369 @@ service cloud.firestore {
     }
   }
 }`}
-                  </div>
-                  <div className="pt-2 flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => {
-                        const rules = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
-                        navigator.clipboard.writeText(rules);
-                        setCopiedRules(true);
-                        setTimeout(() => setCopiedRules(false), 3000);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 transition-colors cursor-pointer shadow-sm"
-                    >
-                      <Copy size={14} />
-                      {copiedRules ? "Regras Copiadas!" : "Copiar Regras Prontas"}
-                    </button>
-                    <a
-                      href="https://console.firebase.google.com/project/danielvalevm/firestore/rules"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-xs hover:bg-amber-500/10 transition-colors"
-                    >
-                      <Globe size={14} />
-                      Abrir Aba Regras no Firebase
-                    </a>
-                    <button
-                      onClick={handleSyncAll}
-                      disabled={isSyncingFirestore}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <Cloud size={14} className={isSyncingFirestore ? "animate-pulse" : ""} />
-                      {isSyncingFirestore ? "Testando e Sincronizando..." : "Testar e Sincronizar Agora"}
-                    </button>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setFirestorePermissionError(false)} 
-                  className="text-gray-400 hover:text-black dark:hover:text-white text-xs font-semibold p-1.5 rounded transition-colors self-start"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            )}
-
-            {/* Sync Feedback Toast / Banner */}
-            {syncStatus && (
-              <div className={`mb-6 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs font-semibold ${
-                syncStatus.success 
-                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
-                  : 'bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {syncStatus.success ? <Check size={16} /> : <AlertCircle size={16} />}
-                  <span>{syncStatus.message}</span>
-                </div>
-                <button onClick={() => setSyncStatus(null)} className="opacity-70 hover:opacity-100 p-1 cursor-pointer">
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-
-            {/* Page Header */}
-            <div className="flex flex-wrap items-center justify-between gap-6 mb-6 flex-shrink-0">
-              <div>
-                <h1 className="text-2xl font-bold text-black dark:text-white mb-1">
-                  {getHeaderTitle()}
-                </h1>
-                <p className="text-gray-500 dark:text-[#777] text-[13px] font-medium">
-                  {getHeaderDesc()}
-                </p>
-              </div>
-              
-              <div className="flex items-center gap-3 flex-wrap">
-
-
-                {activeTab === 'projects' && (
-                  <>
-                    <div className="hidden sm:flex items-center bg-white dark:bg-[#111111] rounded-full p-1 border border-gray-200 dark:border-[#222]">
-                      <button 
-                        onClick={() => setViewMode('grid')}
-                        className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'grid' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
-                      >
-                        <LayoutGrid size={14} /> {t.gridView}
-                      </button>
-                      <button 
-                        onClick={() => setViewMode('list')}
-                        className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'list' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
-                      >
-                        <Folder size={14} /> {t.listView}
-                      </button>
-                    </div>
-                    
-                    <button 
-                      onClick={() => {
-                        setNewProjectCategory(projectCategoryFilter !== 'Todas' ? projectCategoryFilter : 'Imobiliário');
-                        setIsCreating(true);
-                      }}
-                      className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-                    >
-                      <Plus size={16} /> {t.addProject}
-                    </button>
-                  </>
-                )}
-
-                {activeTab === 'clients' && (
-                  <button 
-                    onClick={() => setIsCreatingClient(true)}
-                    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-                  >
-                    <Plus size={16} /> {lang === 'pt' ? 'Adicionar Cliente' : 'Add Client'}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Content Display */}
-            {activeTab === 'clients' ? (
-              <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {realClients.length === 0 ? (
-                  <div className="flex-1 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 flex flex-col justify-center items-center shadow-sm h-full min-h-[400px]">
-                    <div className="w-20 h-20 bg-gray-100 dark:bg-[#1a1a1a] rounded-full flex items-center justify-center mb-6">
-                      <Briefcase size={32} className="text-gray-400 dark:text-[#555]" />
-                    </div>
-                    <h3 className="text-xl font-bold text-black dark:text-white mb-6">Nenhum cliente cadastrado</h3>
-                    <button 
-                      onClick={() => setIsCreatingClient(true)}
-                      className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
-                    >
-                      <Plus size={16} /> Adicionar Primeiro Cliente
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 content-start pb-6">
-                    {realClients.map(client => (
-                      <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm hover:border-gray-300 dark:hover:border-[#333] transition-all group">
-                        <div className="absolute top-3 right-3 flex items-center gap-1">
-                          <button
-                            onClick={() => handleEditClient(client)}
-                            className="p-2 rounded-full text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
-                            title={lang === 'pt' ? 'Editar cliente' : 'Edit client'}
-                            aria-label={lang === 'pt' ? 'Editar cliente' : 'Edit client'}
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setClientToDelete(client);
-                              setIsDeleteClientModalOpen(true);
-                            }}
-                            className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                            title={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
-                            aria-label={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                        <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center mb-3 border border-gray-200 dark:border-[#333] shadow-inner">
-                           {client.logoUrl?.trim() ? (
-                             <img src={client.logoUrl.trim()} alt={client.name} className="w-full h-full object-cover" />
-                           ) : (
-                             <User size={32} className="text-gray-400" />
-                           )}
-                        </div>
-                        <h4 className="font-bold text-[15px] text-gray-900 dark:text-white text-center truncate w-full">{client.name}</h4>
-                        {client.company && (
-                          <div className="mt-1 px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-[#FF6321] text-[11px] font-bold max-w-full truncate flex items-center gap-1">
-                            <Building2 size={11} className="flex-shrink-0" />
-                            <span className="truncate">{client.company}</span>
-                          </div>
-                        )}
-                        {client.email && (
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-1.5 flex items-center justify-center gap-1.5">
-                            <Mail size={11} className="text-gray-400 flex-shrink-0" />
-                            <span className="truncate">{client.email}</span>
-                          </p>
-                        )}
-                        {client.phone && (
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-1 flex items-center justify-center gap-1.5">
-                            <Phone size={11} className="text-emerald-500 flex-shrink-0" />
-                            <span className="truncate">{client.phone}</span>
-                          </p>
-                        )}
-                        {client.instagram && (
-                          <p className="text-[11px] text-pink-500 text-center truncate w-full mt-1 flex items-center justify-center gap-1.5 font-medium">
-                            <Instagram size={11} className="flex-shrink-0" />
-                            <span className="truncate">{client.instagram.startsWith('@') || client.instagram.includes('/') ? client.instagram : `@${client.instagram}`}</span>
-                          </p>
-                        )}
                       </div>
-                    ))}
+                      <div className="pt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const rules = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+                            navigator.clipboard.writeText(rules);
+                            setCopiedRules(true);
+                            setTimeout(() => setCopiedRules(false), 3000);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 transition-colors cursor-pointer shadow-sm"
+                        >
+                          <Copy size={14} />
+                          {copiedRules ? "Regras Copiadas!" : "Copiar Regras Prontas"}
+                        </button>
+                        <a
+                          href="https://console.firebase.google.com/project/danielvalevm/firestore/rules"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-xs hover:bg-amber-500/10 transition-colors"
+                        >
+                          <Globe size={14} />
+                          Abrir Aba Regras no Firebase
+                        </a>
+                        <button
+                          onClick={handleSyncAll}
+                          disabled={isSyncingFirestore}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <Cloud size={14} className={isSyncingFirestore ? "animate-pulse" : ""} />
+                          {isSyncingFirestore ? "Testando e Sincronizando..." : "Testar e Sincronizar Agora"}
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setFirestorePermissionError(false)}
+                      className="text-gray-400 hover:text-black dark:hover:text-white text-xs font-semibold p-1.5 rounded transition-colors self-start"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                 )}
-              </div>
-            ) : activeTab === 'dashboard' ? (
-              <div className="flex flex-col lg:flex-row gap-6 h-full pb-8">
-                <div className="flex-1 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 flex flex-col justify-center items-center shadow-sm min-h-[400px]">
-                  <h3 className="text-xl font-bold text-black dark:text-white mb-2">{t.projectsOverview}</h3>
-                  <p className="text-gray-500 dark:text-[#777] text-[13px] mb-8">{t.overviewDesc}</p>
-                  
-                  {pieData.length > 0 ? (
-                    <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={70}
-                            outerRadius={100}
-                            paddingAngle={5}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: theme === 'dark' ? '#1a1a1a' : '#fff', border: theme === 'dark' ? '1px solid #333' : '1px solid #e5e7eb', borderRadius: '8px', color: theme === 'dark' ? '#fff' : '#000' }}
-                            itemStyle={{ color: theme === 'dark' ? '#fff' : '#000' }}
-                          />
-                          <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#555' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
+
+                {/* Sync Feedback Toast / Banner */}
+                {syncStatus && (
+                  <div className={`mb-6 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs font-semibold ${syncStatus.success
+                      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400'
+                    }`}>
+                    <div className="flex items-center gap-2">
+                      {syncStatus.success ? <Check size={16} /> : <AlertCircle size={16} />}
+                      <span>{syncStatus.message}</span>
                     </div>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-[#555] font-medium text-[13px]">
-                      {t.noProjects}
+                    <button onClick={() => setSyncStatus(null)} className="opacity-70 hover:opacity-100 p-1 cursor-pointer">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Page Header */}
+                <div className="flex flex-wrap items-center justify-between gap-6 mb-6 flex-shrink-0">
+                  <div>
+                    <h1 className="text-2xl font-bold text-black dark:text-white mb-1">
+                      {getHeaderTitle()}
+                    </h1>
+                    <p className="text-gray-500 dark:text-[#777] text-[13px] font-medium">
+                      {getHeaderDesc()}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+
+
+                    {activeTab === 'projects' && (
+                      <>
+                        <div className="hidden sm:flex items-center bg-white dark:bg-[#111111] rounded-full p-1 border border-gray-200 dark:border-[#222]">
+                          <button
+                            onClick={() => setViewMode('grid')}
+                            className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'grid' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
+                          >
+                            <LayoutGrid size={14} /> {t.gridView}
+                          </button>
+                          <button
+                            onClick={() => setViewMode('list')}
+                            className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 ${viewMode === 'list' ? 'bg-black text-white dark:bg-[#222] dark:text-white' : 'text-gray-500 dark:text-[#777] hover:text-black dark:hover:text-white'}`}
+                          >
+                            <Folder size={14} /> {t.listView}
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setNewProjectCategory(projectCategoryFilter !== 'Todas' ? projectCategoryFilter : 'Imobiliário');
+                            setIsCreating(true);
+                          }}
+                          className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                        >
+                          <Plus size={16} /> {t.addProject}
+                        </button>
+                      </>
+                    )}
+
+                    {activeTab === 'clients' && (
+                      <button
+                        onClick={() => setIsCreatingClient(true)}
+                        className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                      >
+                        <Plus size={16} /> {lang === 'pt' ? 'Adicionar Cliente' : 'Add Client'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content Display */}
+                {activeTab === 'clients' ? (
+                  <div className="flex-1 flex flex-col h-full overflow-hidden">
+                    {realClients.length === 0 ? (
+                      <div className="flex-1 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 flex flex-col justify-center items-center shadow-sm h-full min-h-[400px]">
+                        <div className="w-20 h-20 bg-gray-100 dark:bg-[#1a1a1a] rounded-full flex items-center justify-center mb-6">
+                          <Briefcase size={32} className="text-gray-400 dark:text-[#555]" />
+                        </div>
+                        <h3 className="text-xl font-bold text-black dark:text-white mb-6">Nenhum cliente cadastrado</h3>
+                        <button
+                          onClick={() => setIsCreatingClient(true)}
+                          className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                        >
+                          <Plus size={16} /> Adicionar Primeiro Cliente
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 content-start pb-6">
+                        {realClients.map(client => (
+                          <div key={client.id} className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl p-6 flex flex-col items-center relative shadow-sm hover:border-gray-300 dark:hover:border-[#333] transition-all group">
+                            <div className="absolute top-3 right-3 flex items-center gap-1">
+                              <button
+                                onClick={() => handleEditClient(client)}
+                                className="p-2 rounded-full text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+                                title={lang === 'pt' ? 'Editar cliente' : 'Edit client'}
+                                aria-label={lang === 'pt' ? 'Editar cliente' : 'Edit client'}
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setClientToDelete(client);
+                                  setIsDeleteClientModalOpen(true);
+                                }}
+                                className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                title={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
+                                aria-label={lang === 'pt' ? 'Excluir cliente' : 'Delete client'}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center mb-3 border border-gray-200 dark:border-[#333] shadow-inner">
+                              {client.logoUrl?.trim() ? (
+                                <img src={client.logoUrl.trim()} alt={client.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <User size={32} className="text-gray-400" />
+                              )}
+                            </div>
+                            <h4 className="font-bold text-[15px] text-gray-900 dark:text-white text-center truncate w-full">{client.name}</h4>
+                            {client.company && (
+                              <div className="mt-1 px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-[#FF6321] text-[11px] font-bold max-w-full truncate flex items-center gap-1">
+                                <Building2 size={11} className="flex-shrink-0" />
+                                <span className="truncate">{client.company}</span>
+                              </div>
+                            )}
+                            {client.email && (
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-1.5 flex items-center justify-center gap-1.5">
+                                <Mail size={11} className="text-gray-400 flex-shrink-0" />
+                                <span className="truncate">{client.email}</span>
+                              </p>
+                            )}
+                            {client.phone && (
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center truncate w-full mt-1 flex items-center justify-center gap-1.5">
+                                <Phone size={11} className="text-emerald-500 flex-shrink-0" />
+                                <span className="truncate">{client.phone}</span>
+                              </p>
+                            )}
+                            {client.instagram && (
+                              <p className="text-[11px] text-pink-500 text-center truncate w-full mt-1 flex items-center justify-center gap-1.5 font-medium">
+                                <Instagram size={11} className="flex-shrink-0" />
+                                <span className="truncate">{client.instagram.startsWith('@') || client.instagram.includes('/') ? client.instagram : `@${client.instagram}`}</span>
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : activeTab === 'dashboard' ? (
+                  <div className="flex flex-col lg:flex-row gap-6 h-full pb-8">
+                    <div className="flex-1 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 flex flex-col justify-center items-center shadow-sm min-h-[400px]">
+                      <h3 className="text-xl font-bold text-black dark:text-white mb-2">{t.projectsOverview}</h3>
+                      <p className="text-gray-500 dark:text-[#777] text-[13px] mb-8">{t.overviewDesc}</p>
+
+                      {pieData.length > 0 ? (
+                        <div className="h-[300px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={pieData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={70}
+                                outerRadius={100}
+                                paddingAngle={5}
+                                dataKey="value"
+                                stroke="none"
+                              >
+                                {pieData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{ backgroundColor: theme === 'dark' ? '#1a1a1a' : '#fff', border: theme === 'dark' ? '1px solid #333' : '1px solid #e5e7eb', borderRadius: '8px', color: theme === 'dark' ? '#fff' : '#000' }}
+                                itemStyle={{ color: theme === 'dark' ? '#fff' : '#000' }}
+                              />
+                              <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#555' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-[#555] font-medium text-[13px]">
+                          {t.noProjects}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 h-full content-start">
+                      <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
+                        <span className="text-4xl font-bold text-black dark:text-white mb-2">{realProjects.length}</span>
+                        <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.totalProjects}</span>
+                      </div>
+                      <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
+                        <span className="text-4xl font-bold text-[#EAB308] mb-2">{realProjects.filter(p => p.isFavorite).length}</span>
+                        <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.favorites}</span>
+                      </div>
+                      <div className="col-span-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
+                        <span className="text-4xl font-bold text-[#3B82F6] mb-2">{realProjects.reduce((acc, curr) => acc + (curr.views || 0), 0)}</span>
+                        <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.totalViews}</span>
+                      </div>
+                      <div className="col-span-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex items-center gap-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#161616] transition-colors" onClick={() => { setActiveTab('projects'); setCurrentPage(1); }}>
+                        <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center flex-shrink-0">
+                          <Folder size={24} className="text-gray-500 dark:text-[#888]" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-black dark:text-white font-bold text-[15px] mb-1">{t.managePortfolio}</h3>
+                          <p className="text-gray-500 dark:text-[#777] text-[13px]">{t.manageDesc}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : activeTab === 'notes' ? (
+                  <NotesTab lang={lang} />
+                ) : activeTab === 'files' ? (
+                  <FilesTab lang={lang} />
+                ) : activeTab === 'chats' ? (
+                  <ConversasTab lang={lang} />
+                ) : activeTab === 'mail' ? (
+                  <EmailTab lang={lang} />
+                ) : activeTab === 'calendar' ? (
+                  <CalendarTab lang={lang} />
+                ) : activeTab === 'knowledgeBase' ? (
+                  <KnowledgeBaseTab lang={lang} />
+                ) : activeTab === 'messenger' ? (
+                  <MessagesTab lang={lang} />
+                ) : activeTab === 'settings' ? (
+                  <SettingsTab lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} />
+                ) : activeTab === 'learn' ? (
+                  <LearnTab lang={lang} />
+                ) : activeTab === 'helpCenter' ? (
+                  <HelpCenterTab lang={lang} onNavigateToSupport={() => setActiveTab('support')} />
+                ) : activeTab === 'support' ? (
+                  <SupportTab lang={lang} />
+                ) : null}
+
+                {/* Tab Projetos: Mantida montada com alternância de visibilidade para que miniaturas e DOM permaneçam cacheados */}
+                <div className={`flex-1 flex-col h-full overflow-hidden ${activeTab === 'projects' ? 'flex' : 'hidden'}`}>
+                  <div className={`flex-1 ${viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 content-start items-start" : "flex flex-col gap-3"} overflow-y-auto no-scrollbar pb-4`}>
+                    {filteredProjects.map((project, idx) => {
+                      const pageIndex = Math.floor(idx / itemsPerPage) + 1;
+                      const isVisible = pageIndex === currentPage;
+                      const projectNotes = notes.filter(n => n.projectId === project.id || n.projectName === project.title);
+
+                      return (
+                        <Card
+                          key={project.id}
+                          project={project}
+                          viewMode={viewMode}
+                          isSelected={selectedProjectIds.has(project.id)}
+                          isVisible={isVisible}
+                          notesCount={projectNotes.length}
+                          onToggleSelect={(e) => handleToggleSelect(project.id, e)}
+                          onToggleFavorite={(e) => handleToggleFavorite(project.id, e)}
+                          onClick={() => setEditingProject(project)}
+                          onActionClick={handleActionClick}
+                          onAddNote={(proj) => setNoteModalProject(proj)}
+                          onCopyLinkFeedback={handleCopyFeedback}
+                          onUpdateVisibility={handleUpdateProjectVisibility}
+                        />
+                      );
+                    })}
+                    {filteredProjects.length === 0 && (
+                      <div className="col-span-full flex flex-col items-center justify-center h-full text-gray-500 dark:text-[#777] min-h-[260px] border border-dashed border-gray-200 dark:border-[#222] rounded-3xl p-8 bg-gray-50/50 dark:bg-[#151515]/30">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#222] flex items-center justify-center mb-4 text-gray-400">
+                          <Folder size={28} />
+                        </div>
+                        <h3 className="text-lg font-bold text-black dark:text-white mb-1">Nenhum projeto cadastrado</h3>
+                        <p className="text-xs text-gray-500 dark:text-[#777] mb-6 text-center max-w-sm">
+                          Os projetos fictícios foram limpos. Clique no botão abaixo para adicionar seu primeiro trabalho real.
+                        </p>
+                        <button
+                          onClick={() => setIsCreating(true)}
+                          className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm"
+                        >
+                          <Plus size={16} /> {t.addProject}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-center w-full pb-6 gap-6 flex-shrink-0">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {Array.from({ length: totalPages }).map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentPage(idx + 1)}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold transition-colors ${currentPage === idx + 1 ? 'border border-gray-300 dark:border-[#222] bg-gray-100 dark:bg-[#1a1a1a] text-black dark:text-white shadow-sm' : 'border border-transparent text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#111] hover:text-black dark:hover:text-white'}`}
+                          >
+                            {idx + 1}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight size={18} />
+                      </button>
                     </div>
                   )}
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4 h-full content-start">
-                   <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
-                     <span className="text-4xl font-bold text-black dark:text-white mb-2">{realProjects.length}</span>
-                     <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.totalProjects}</span>
-                   </div>
-                   <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
-                     <span className="text-4xl font-bold text-[#EAB308] mb-2">{realProjects.filter(p => p.isFavorite).length}</span>
-                     <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.favorites}</span>
-                   </div>
-                   <div className="col-span-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
-                     <span className="text-4xl font-bold text-[#3B82F6] mb-2">{realProjects.reduce((acc, curr) => acc + (curr.views || 0), 0)}</span>
-                     <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.totalViews}</span>
-                   </div>
-                   <div className="col-span-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex items-center gap-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#161616] transition-colors" onClick={() => { setActiveTab('projects'); setCurrentPage(1); }}>
-                      <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center flex-shrink-0">
-                         <Folder size={24} className="text-gray-500 dark:text-[#888]" />
-                      </div>
-                      <div className="text-left">
-                        <h3 className="text-black dark:text-white font-bold text-[15px] mb-1">{t.managePortfolio}</h3>
-                        <p className="text-gray-500 dark:text-[#777] text-[13px]">{t.manageDesc}</p>
-                      </div>
-                   </div>
-                </div>
-              </div>
-            ) : activeTab === 'notes' ? (
-              <NotesTab lang={lang} />
-            ) : activeTab === 'files' ? (
-              <FilesTab lang={lang} />
-            ) : activeTab === 'chats' ? (
-              <ConversasTab lang={lang} />
-            ) : activeTab === 'mail' ? (
-              <EmailTab lang={lang} />
-            ) : activeTab === 'calendar' ? (
-              <CalendarTab lang={lang} />
-            ) : activeTab === 'knowledgeBase' ? (
-              <KnowledgeBaseTab lang={lang} />
-            ) : activeTab === 'messenger' ? (
-              <MessagesTab lang={lang} />
-            ) : activeTab === 'settings' ? (
-              <SettingsTab lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} />
-            ) : activeTab === 'learn' ? (
-              <LearnTab lang={lang} />
-            ) : activeTab === 'helpCenter' ? (
-              <HelpCenterTab lang={lang} onNavigateToSupport={() => setActiveTab('support')} />
-            ) : activeTab === 'support' ? (
-              <SupportTab lang={lang} />
-            ) : null}
 
-            {/* Tab Projetos: Mantida montada com alternância de visibilidade para que miniaturas e DOM permaneçam cacheados */}
-            <div className={`flex-1 flex-col h-full overflow-hidden ${activeTab === 'projects' ? 'flex' : 'hidden'}`}>
-              <div className={`flex-1 ${viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 content-start items-start" : "flex flex-col gap-3"} overflow-y-auto no-scrollbar pb-4`}>
-                {filteredProjects.map((project, idx) => {
-                  const pageIndex = Math.floor(idx / itemsPerPage) + 1;
-                  const isVisible = pageIndex === currentPage;
-                  const projectNotes = notes.filter(n => n.projectId === project.id || n.projectName === project.title);
-
-                  return (
-                    <Card 
-                      key={project.id} 
-                      project={project}
-                      viewMode={viewMode}
-                      isSelected={selectedProjectIds.has(project.id)}
-                      isVisible={isVisible}
-                      notesCount={projectNotes.length}
-                      onToggleSelect={(e) => handleToggleSelect(project.id, e)}
-                      onToggleFavorite={(e) => handleToggleFavorite(project.id, e)}
-                      onClick={() => setEditingProject(project)}
-                      onActionClick={handleActionClick}
-                      onAddNote={(proj) => setNoteModalProject(proj)}
-                      onCopyLinkFeedback={handleCopyFeedback}
-                      onUpdateVisibility={handleUpdateProjectVisibility}
-                    />
-                  );
-                })}
-                {filteredProjects.length === 0 && (
-                  <div className="col-span-full flex flex-col items-center justify-center h-full text-gray-500 dark:text-[#777] min-h-[260px] border border-dashed border-gray-200 dark:border-[#222] rounded-3xl p-8 bg-gray-50/50 dark:bg-[#151515]/30">
-                     <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#222] flex items-center justify-center mb-4 text-gray-400">
-                       <Folder size={28} />
-                     </div>
-                     <h3 className="text-lg font-bold text-black dark:text-white mb-1">Nenhum projeto cadastrado</h3>
-                     <p className="text-xs text-gray-500 dark:text-[#777] mb-6 text-center max-w-sm">
-                       Os projetos fictícios foram limpos. Clique no botão abaixo para adicionar seu primeiro trabalho real.
-                     </p>
-                     <button
-                       onClick={() => setIsCreating(true)}
-                       className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2 rounded-full text-[13px] font-bold transition-colors flex items-center gap-2 shadow-sm"
-                     >
-                       <Plus size={16} /> {t.addProject}
-                     </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-center w-full pb-6 gap-6 flex-shrink-0">
-                  <button 
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  
-                  <div className="flex items-center gap-2">
-                    {Array.from({ length: totalPages }).map((_, idx) => (
-                      <button 
-                        key={idx}
-                        onClick={() => setCurrentPage(idx + 1)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold transition-colors ${currentPage === idx + 1 ? 'border border-gray-300 dark:border-[#222] bg-gray-100 dark:bg-[#1a1a1a] text-black dark:text-white shadow-sm' : 'border border-transparent text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#111] hover:text-black dark:hover:text-white'}`}
-                      >
-                        {idx + 1}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <button 
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] flex items-center justify-center text-gray-500 dark:text-[#777] hover:bg-gray-100 dark:hover:bg-[#1a1a1a] hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            </>
+              </>
             )}
-            
+
             {/* Footer */}
             <footer className="py-6 mt-auto flex-shrink-0 flex flex-col xl:flex-row items-center justify-between text-gray-500 dark:text-[#666] text-[11px] font-medium gap-6 border-t border-gray-200 dark:border-[#1a1a1a]">
               <p>© 2026 <a href="https://animasystem.com.br" target="_blank" rel="noopener noreferrer" className="hover:text-black dark:hover:text-white transition-colors">AnimaSystem</a></p>
-              
+
               <div className="flex flex-wrap items-center justify-center gap-6">
                 <div className="flex items-center gap-5">
                   <span className="hover:text-black dark:hover:text-white cursor-pointer transition-colors font-bold text-[13px]">f</span>
@@ -2146,26 +2175,26 @@ service cloud.firestore {
                   <span className="hover:text-black dark:hover:text-white cursor-pointer transition-colors font-bold text-[13px]">ig</span>
                   <span className="hover:text-black dark:hover:text-white cursor-pointer transition-colors font-bold text-[13px]">p</span>
                 </div>
-                
+
                 <div className="relative" ref={langMenuRef}>
-                  <div 
-                    onClick={() => setShowLangMenu(!showLangMenu)} 
+                  <div
+                    onClick={() => setShowLangMenu(!showLangMenu)}
                     className="flex items-center gap-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] px-4 py-2 rounded-full cursor-pointer hover:bg-gray-50 dark:hover:bg-[#1a1a1a] hover:border-gray-300 dark:hover:border-[#333] transition-colors text-gray-600 dark:text-[#999]"
                   >
                     <span>{lang === 'pt' ? t.ptLanguage : t.language}</span>
                     <ChevronUp size={14} className={`${showLangMenu ? 'rotate-180' : ''} transition-transform`} />
                   </div>
-                  
+
                   {showLangMenu && (
                     <div className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg py-1 z-[60]">
-                      <button 
-                        onClick={() => { setLang('pt'); setShowLangMenu(false); }} 
+                      <button
+                        onClick={() => { setLang('pt'); setShowLangMenu(false); }}
                         className="w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-gray-100 dark:hover:bg-[#222] transition-colors text-black dark:text-white"
                       >
                         Português (Brasil)
                       </button>
-                      <button 
-                        onClick={() => { setLang('en'); setShowLangMenu(false); }} 
+                      <button
+                        onClick={() => { setLang('en'); setShowLangMenu(false); }}
                         className="w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-gray-100 dark:hover:bg-[#222] transition-colors text-black dark:text-white"
                       >
                         English Language
@@ -2178,7 +2207,7 @@ service cloud.firestore {
           </div>
         </div>
       </div>
-{/* Create Client Modal */}
+      {/* Create Client Modal */}
       {isCreatingClient && (
         <div className="absolute inset-0 bg-black/60 z-[300] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto no-scrollbar">
@@ -2257,8 +2286,8 @@ service cloud.firestore {
                 <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
                   Nome do Cliente <span className="text-red-500">*</span>
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newClientName}
                   onChange={(e) => setNewClientName(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
@@ -2273,8 +2302,8 @@ service cloud.firestore {
                 <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
                   Email
                 </label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={newClientEmail}
                   onChange={(e) => setNewClientEmail(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
@@ -2288,8 +2317,8 @@ service cloud.firestore {
                 <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
                   Empresa
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newClientCompany}
                   onChange={(e) => setNewClientCompany(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
@@ -2303,8 +2332,8 @@ service cloud.firestore {
                 <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
                   Telefone / WhatsApp
                 </label>
-                <input 
-                  type="tel" 
+                <input
+                  type="tel"
                   value={newClientPhone}
                   onChange={(e) => setNewClientPhone(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
@@ -2318,8 +2347,8 @@ service cloud.firestore {
                 <label className="text-[12px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider mb-1.5 block">
                   Instagram
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newClientInstagram}
                   onChange={(e) => setNewClientInstagram(e.target.value)}
                   className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors text-sm"
@@ -2334,13 +2363,13 @@ service cloud.firestore {
                   <span>Foto do Cliente / Logo</span>
                   <span className="text-[11px] text-gray-400 font-normal lowercase">Do computador ou URL</span>
                 </label>
-                
-                <input 
-                  type="file" 
-                  ref={clientFileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={handleClientPhotoSelect} 
+
+                <input
+                  type="file"
+                  ref={clientFileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleClientPhotoSelect}
                   disabled={isSavingClient}
                 />
 
@@ -2378,7 +2407,7 @@ service cloud.firestore {
                     </div>
                   </div>
                 ) : (
-                  <div 
+                  <div
                     onClick={() => !isSavingClient && clientFileInputRef.current?.click()}
                     className="border-2 border-dashed border-gray-300 dark:border-[#2a2a2a] hover:border-[#FF6321] dark:hover:border-[#FF6321] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors bg-gray-50/50 dark:bg-[#161616]/50 group"
                   >
@@ -2396,8 +2425,8 @@ service cloud.firestore {
 
                 {/* Ou URL opcional */}
                 <div className="mt-3">
-                  <input 
-                    type="url" 
+                  <input
+                    type="url"
                     value={newClientLogo}
                     onChange={(e) => {
                       setNewClientLogo(e.target.value);
@@ -2414,7 +2443,7 @@ service cloud.firestore {
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-[#1e1e1e]">
-              <button 
+              <button
                 onClick={() => {
                   if (!isSavingClient) {
                     setIsCreatingClient(false);
@@ -2435,7 +2464,7 @@ service cloud.firestore {
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={handleSaveClient}
                 disabled={isSavingClient || !newClientName.trim()}
                 className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2 shadow-sm"
@@ -2454,29 +2483,42 @@ service cloud.firestore {
         </div>
       )}
 
+      {/* Client Delivery Modal */}
+      {actionModal === 'clientDelivery' && actionProject && (
+        <ClientDeliveryModal
+          isOpen={true}
+          onClose={() => setActionModal(null)}
+          project={actionProject}
+          onUpdateProject={(updated) => {
+            setActionProject(updated);
+            setRealProjects(getProjects());
+          }}
+        />
+      )}
+
       {/* Action Modals */}
-      {actionModal && actionProject && (
+      {actionModal && actionModal !== 'clientDelivery' && actionProject && (
         <div className="absolute inset-0 bg-black/60 z-[300] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#222] rounded-3xl w-full max-w-md p-6 shadow-xl relative">
-            <button 
+            <button
               onClick={() => setActionModal(null)}
               className="absolute top-4 right-4 text-gray-400 hover:text-black dark:hover:text-white transition-colors"
             >
               <X size={20} />
             </button>
-            
+
             <h3 className="text-lg font-bold text-black dark:text-white mb-2">
               {actionModal === 'review' ? 'Link de Avaliação' : 'Código de Download'}
             </h3>
             <p className="text-gray-500 dark:text-[#777] text-[13px] mb-6">
               Projeto: <span className="font-bold text-gray-800 dark:text-[#ccc]">{actionProject.title}</span>
             </p>
-            
+
             {actionModal === 'review' ? (
               <div className="space-y-4">
                 <div className="bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] rounded-xl p-3 flex items-center justify-between">
                   <span className="text-[13px] text-gray-600 dark:text-[#aaa] truncate flex-1">{window.location.origin}/avaliar/{actionProject.id}</span>
-                  <button 
+                  <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.origin + '/avaliar/' + actionProject.id);
                       alert('Link copiado!');
@@ -2487,8 +2529,8 @@ service cloud.firestore {
                     <Copy size={16} />
                   </button>
                 </div>
-                
-                <a 
+
+                <a
                   href={`https://wa.me/?text=${encodeURIComponent('Olá! Segue o link para avaliação do projeto "' + actionProject.title + '": ' + window.location.origin + '/avaliar/' + actionProject.id)}`}
                   target="_blank"
                   rel="noreferrer"
@@ -2500,39 +2542,39 @@ service cloud.firestore {
             ) : (
               <div className="space-y-4">
                 <div className="bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] rounded-xl p-6 flex flex-col items-center justify-center mb-6">
-                   <p className="text-[11px] text-gray-500 dark:text-[#888] font-bold uppercase mb-2">Código Gerado</p>
-                   <div className="flex items-center justify-center gap-3">
-                     <p className="text-3xl bg-[#1e3a8a] text-white px-4 py-1 rounded shadow-sm font-mono font-black tracking-[0.2em]">
-                       {actionProject.downloadCode || 'N/A'}
-                     </p>
-                     {actionProject.downloadCode && (
-                       <button 
-                         onClick={() => {
-                           navigator.clipboard.writeText(actionProject.downloadCode);
-                           // Basic feedback, could be a toast but alert is fine for now
-                           alert('Código copiado com sucesso!');
-                         }}
-                         className="text-gray-400 hover:text-white transition-colors p-2 cursor-pointer bg-gray-200 dark:bg-[#222] rounded-full hover:bg-gray-300 dark:hover:bg-[#333]"
-                         title="Copiar Código"
-                       >
-                         <Copy size={18} />
-                       </button>
-                     )}
-                   </div>
-                   {!actionProject.downloadCode && (
-                     <p className="text-[11px] text-red-500 mt-2">Habilite o download nas edições do projeto.</p>
-                   )}
+                  <p className="text-[11px] text-gray-500 dark:text-[#888] font-bold uppercase mb-2">Código Gerado</p>
+                  <div className="flex items-center justify-center gap-3">
+                    <p className="text-3xl bg-[#1e3a8a] text-white px-4 py-1 rounded shadow-sm font-mono font-black tracking-[0.2em]">
+                      {actionProject.downloadCode || 'N/A'}
+                    </p>
+                    {actionProject.downloadCode && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(actionProject.downloadCode);
+                          // Basic feedback, could be a toast but alert is fine for now
+                          alert('Código copiado com sucesso!');
+                        }}
+                        className="text-gray-400 hover:text-white transition-colors p-2 cursor-pointer bg-gray-200 dark:bg-[#222] rounded-full hover:bg-gray-300 dark:hover:bg-[#333]"
+                        title="Copiar Código"
+                      >
+                        <Copy size={18} />
+                      </button>
+                    )}
+                  </div>
+                  {!actionProject.downloadCode && (
+                    <p className="text-[11px] text-red-500 mt-2">Habilite o download nas edições do projeto.</p>
+                  )}
                 </div>
-                
+
                 {actionProject.downloadCode && (
                   <div className="flex flex-col gap-3">
-                    <a 
+                    <a
                       href={`mailto:?subject=${encodeURIComponent('Acesso ao seu projeto: ' + actionProject.title)}&body=${encodeURIComponent('Olá, seu código de download é: ' + actionProject.downloadCode)}`}
                       className="w-full bg-black hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-black py-3 rounded-full text-[14px] font-bold transition-colors flex items-center justify-center gap-2"
                     >
                       <Mail size={18} /> Enviar via E-mail
                     </a>
-                    <a 
+                    <a
                       href={`https://wa.me/?text=${encodeURIComponent('Olá! O código de download do seu projeto "' + actionProject.title + '" é: *' + actionProject.downloadCode + '*')}`}
                       target="_blank"
                       rel="noreferrer"
