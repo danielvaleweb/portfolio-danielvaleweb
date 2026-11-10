@@ -729,6 +729,7 @@ export default function Admin() {
   const unreadCount = notifications.filter(n => !n.read).length;
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [realProjects, setRealProjects] = useState<Project[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -1458,8 +1459,23 @@ export default function Admin() {
 
 
 
+      {/* Mobile Backdrop Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[105] md:hidden transition-opacity duration-300 animate-in fade-in"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`${isSidebarCollapsed ? 'w-[70px]' : 'w-[280px]'} flex-shrink-0 border-r border-gray-200 dark:border-[#1a1a1a] flex flex-col h-full bg-white dark:bg-[#0a0a0a] z-50 pb-6 hidden md:flex transition-all duration-300 relative`}>
+      <aside className={`
+        fixed md:relative inset-y-0 left-0 z-[110] md:z-50
+        ${isSidebarCollapsed ? 'md:w-[70px]' : 'md:w-[280px]'}
+        w-[280px] max-w-[85vw]
+        flex-shrink-0 border-r border-gray-200 dark:border-[#1a1a1a] flex flex-col h-full bg-white dark:bg-[#0a0a0a] pb-6
+        transition-all duration-300
+        ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl flex' : '-translate-x-full md:translate-x-0 hidden md:flex'}
+      `}>
         <div className={`h-[64px] flex-shrink-0 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between px-6'} mb-4`}>
           {!isSidebarCollapsed && (
             <div className="flex items-center gap-2">
@@ -1467,6 +1483,16 @@ export default function Admin() {
             </div>
           )}
           <div className="flex items-center gap-2 relative">
+            {/* Fechar Sidebar no Mobile (setinha invertida) */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="md:hidden text-gray-500 dark:text-[#888] hover:text-black dark:hover:text-white transition-colors bg-gray-100 dark:bg-[#161616] p-1.5 rounded-lg border border-gray-200 dark:border-[#222]"
+              title="Fechar Menu"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-180">
+                <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
+              </svg>
+            </button>
             {!isSidebarCollapsed && (
               <div ref={menuConfigRef} className="relative">
                 <button
@@ -1527,6 +1553,7 @@ export default function Admin() {
                           setIsCreating(false);
                           setEditingProject(null);
                           if (item.id === 'projects') setCurrentPage(1);
+                          setIsMobileSidebarOpen(false);
                         }}
                         collapsed={isSidebarCollapsed}
                         draggable={!isSidebarCollapsed}
@@ -1575,6 +1602,7 @@ export default function Admin() {
                                 setNewProjectCategory('Imobiliário');
                                 setEditingProject(null);
                                 setIsCreating(true);
+                                setIsMobileSidebarOpen(false);
                               }}
                               className="opacity-0 group-hover:opacity-100 p-0.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded transition-opacity"
                               title="Novo projeto Imobiliário"
@@ -1592,6 +1620,7 @@ export default function Admin() {
                                     setActiveTab('projects');
                                     setEditingProject(proj);
                                     setIsCreating(false);
+                                    setIsMobileSidebarOpen(false);
                                   }}
                                   className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
                                       ? 'bg-blue-500/15 text-blue-500 font-bold'
@@ -1634,6 +1663,7 @@ export default function Admin() {
                                 setNewProjectCategory('Publicitário');
                                 setEditingProject(null);
                                 setIsCreating(true);
+                                setIsMobileSidebarOpen(false);
                               }}
                               className="opacity-0 group-hover:opacity-100 p-0.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded transition-opacity"
                               title="Novo projeto Publicitário"
@@ -1651,6 +1681,7 @@ export default function Admin() {
                                     setActiveTab('projects');
                                     setEditingProject(proj);
                                     setIsCreating(false);
+                                    setIsMobileSidebarOpen(false);
                                   }}
                                   className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
                                       ? 'bg-amber-500/15 text-amber-500 font-bold'
@@ -1679,6 +1710,7 @@ export default function Admin() {
                                 setActiveTab('projects');
                                 setIsCreating(false);
                                 setEditingProject(null);
+                                setIsMobileSidebarOpen(false);
                               }}
                               className="flex items-center gap-1.5 flex-1 text-left"
                             >
@@ -1693,6 +1725,7 @@ export default function Admin() {
                                 setNewProjectCategory('Eventos');
                                 setEditingProject(null);
                                 setIsCreating(true);
+                                setIsMobileSidebarOpen(false);
                               }}
                               className="opacity-0 group-hover:opacity-100 p-0.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded transition-opacity"
                               title="Novo projeto de Eventos"
@@ -1710,6 +1743,7 @@ export default function Admin() {
                                     setActiveTab('projects');
                                     setEditingProject(proj);
                                     setIsCreating(false);
+                                    setIsMobileSidebarOpen(false);
                                   }}
                                   className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
                                       ? 'bg-emerald-500/15 text-emerald-500 font-bold'
@@ -1749,6 +1783,7 @@ export default function Admin() {
                     setActiveTab(item.id);
                     setIsCreating(false);
                     setEditingProject(null);
+                    setIsMobileSidebarOpen(false);
                   }}
                   collapsed={isSidebarCollapsed}
                   draggable={!isSidebarCollapsed}
@@ -1775,7 +1810,30 @@ export default function Admin() {
         ) : (
           <header className="h-[64px] flex-shrink-0 border-b border-gray-200 dark:border-[#1a1a1a] flex items-center justify-between px-4 md:px-8 bg-white dark:bg-[#0a0a0a] transition-all relative z-30">
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 sm:gap-6">
+              {/* Botão da Setinha no topo do lado esquerdo (Mobile) */}
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(prev => !prev)}
+                className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100 dark:bg-[#161616] hover:bg-gray-200 dark:hover:bg-[#222] border border-gray-200 dark:border-[#2a2a2a] text-gray-700 dark:text-gray-200 transition-all cursor-pointer shadow-xs active:scale-95"
+                title={isMobileSidebarOpen ? "Fechar Menu Lateral" : "Abrir Menu Lateral"}
+                aria-label="Abrir Menu Lateral"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`transition-transform duration-300 ${isMobileSidebarOpen ? 'rotate-180' : ''}`}
+                >
+                  <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
+                </svg>
+              </button>
+
               <div className="relative hidden sm:block">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#777]" />
                 <input
@@ -1922,7 +1980,7 @@ export default function Admin() {
 
         {/* Normal Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-10 pt-5 sm:pt-6 flex-1 w-full flex flex-col overflow-y-auto no-scrollbar">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-10 pt-5 sm:pt-6 pb-6 md:pb-0 flex-1 w-full flex flex-col overflow-y-auto no-scrollbar">
 
             {(isCreating || editingProject) ? (
               <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-200 dark:border-[#222] p-6 sm:p-8 flex-1 shadow-sm relative mb-6">
@@ -2186,7 +2244,7 @@ service cloud.firestore {
                     )}
                   </div>
                 ) : activeTab === 'dashboard' ? (
-                  <div className="flex flex-col lg:flex-row gap-6 h-full pb-8">
+                  <div className="flex flex-col lg:flex-row gap-6 h-auto lg:h-full pb-6 md:pb-8">
                     <div className="flex-1 bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-8 flex flex-col justify-center items-center shadow-sm min-h-[400px]">
                       <h3 className="text-xl font-bold text-black dark:text-white mb-2">{t.projectsOverview}</h3>
                       <p className="text-gray-500 dark:text-[#777] text-[13px] mb-8">{t.overviewDesc}</p>
@@ -2224,7 +2282,7 @@ service cloud.firestore {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 h-full content-start">
+                    <div className="grid grid-cols-2 gap-4 h-auto lg:h-full content-start">
                       <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-[#1f1f1f] rounded-3xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
                         <span className="text-4xl font-bold text-black dark:text-white mb-2">{realProjects.length}</span>
                         <span className="text-gray-500 dark:text-[#777] text-[13px] uppercase tracking-wider font-bold">{t.totalProjects}</span>
@@ -2358,7 +2416,7 @@ service cloud.firestore {
             )}
 
             {/* Footer */}
-            <footer className="py-3 mt-auto flex-shrink-0 flex flex-col xl:flex-row items-center justify-between text-gray-500 dark:text-[#666] text-[11px] font-medium gap-4 border-t border-gray-200 dark:border-[#1a1a1a]">
+            <footer className="py-4 md:py-3 mt-8 md:mt-auto mb-6 md:mb-0 flex-shrink-0 flex flex-col xl:flex-row items-center justify-between text-gray-500 dark:text-[#666] text-[11px] font-medium gap-4 border-t border-gray-200 dark:border-[#1a1a1a]">
               <p>© 2026 <a href="https://animasystem.com.br" target="_blank" rel="noopener noreferrer" className="hover:text-black dark:hover:text-white transition-colors">AnimaSystem</a></p>
 
               <div className="flex flex-wrap items-center justify-center gap-6">
