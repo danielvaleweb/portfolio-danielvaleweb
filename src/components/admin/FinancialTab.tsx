@@ -14,8 +14,6 @@ import {
   Clock, 
   Edit3, 
   Trash2, 
-  Download, 
-  FileSpreadsheet, 
   Film, 
   User, 
   Tag, 
@@ -372,38 +370,6 @@ export const FinancialTab: React.FC<FinancialTabProps> = ({ lang = 'pt' }) => {
     showToast('Transação excluída do financeiro.');
   };
 
-  // Exportar dados filtrados para CSV
-  const handleExportCSV = () => {
-    if (filteredTransactions.length === 0) {
-      alert('Nenhuma transação encontrada no filtro atual para exportar.');
-      return;
-    }
-
-    const headers = ['Data', 'Tipo', 'Descrição', 'Categoria', 'Projeto', 'Cliente', 'Forma de Pagamento', 'Status', 'Valor (R$)'];
-    const rows = filteredTransactions.map(tx => [
-      tx.date,
-      tx.type === 'income' ? 'Ganho (Receita)' : 'Despesa (Conta)',
-      `"${tx.description.replace(/"/g, '""')}"`,
-      `"${tx.category}"`,
-      `"${(tx.projectTitle || '').replace(/"/g, '""')}"`,
-      `"${(tx.clientName || '').replace(/"/g, '""')}"`,
-      tx.paymentMethod || 'pix',
-      tx.status === 'paid' ? 'Recebido/Pago' : 'Pendente',
-      tx.amount.toFixed(2).replace('.', ',')
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `financeiro_daniel_vale_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('Relatório CSV exportado com sucesso!');
-  };
-
   const formatBRL = (val: number) => {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
@@ -444,16 +410,6 @@ export const FinancialTab: React.FC<FinancialTabProps> = ({ lang = 'pt' }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="px-4 py-2.5 rounded-full border border-gray-200 dark:border-[#333] hover:bg-gray-100 dark:hover:bg-[#222] text-xs font-bold text-gray-700 dark:text-[#ccc] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Exportar para Excel / CSV"
-          >
-            <Download size={14} />
-            <span>Exportar CSV</span>
-          </button>
-
           <button
             type="button"
             onClick={() => handleOpenModal(undefined, 'expense')}

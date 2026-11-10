@@ -166,18 +166,20 @@ export async function triggerDownload(
 
       return;
     } catch (err) {
-      console.warn('Erro ao processar blob direto do Firebase, tentando fallback seguro:', err);
+      console.warn('Erro no fetch direto do Firebase (provável CORS ainda não ativo no bucket), usando rota direta segura:', err);
 
-      // Fallback em caso de erro incomum de rede
+      // Fallback 100% garantido: rota /api/download que injeta Content-Disposition: attachment
+      // Isso força o download nativo do arquivo no disco e impede que o navegador abra o player de vídeo
+      const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(cleanName)}`;
       const a = document.createElement('a');
-      a.href = info.url;
+      a.href = proxyUrl;
       a.setAttribute('download', cleanName);
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
         if (document.body.contains(a)) document.body.removeChild(a);
-      }, 2000);
+      }, 3000);
       return;
     }
   }
@@ -227,14 +229,16 @@ export async function triggerDownload(
       if (document.body.contains(a)) document.body.removeChild(a);
     }, 4000);
   } catch {
+    const fallbackName = suggestedFilename || 'arquivo.mp4';
+    const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(fallbackName)}`;
     const a = document.createElement('a');
-    a.href = info.url;
-    if (suggestedFilename) a.setAttribute('download', suggestedFilename);
+    a.href = proxyUrl;
+    a.setAttribute('download', fallbackName);
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
       if (document.body.contains(a)) document.body.removeChild(a);
-    }, 2000);
+    }, 3000);
   }
 }
