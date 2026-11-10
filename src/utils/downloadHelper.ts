@@ -96,6 +96,71 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
 }
 
 /**
+ * Auxiliar para efetuar o streaming dos bytes com tracking de progresso e geração de Blob local.
+ * Garante que o navegador dispare o download nativo do arquivo no disco.
+ */
+async function streamFetchBlob(
+  targetUrl: string,
+  cleanName: string,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  const response = await fetch(targetUrl);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const contentLength = response.headers.get('content-length');
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+  let blob: Blob;
+
+  if (response.body && totalBytes > 0 && onProgress) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let receivedBytes = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        receivedBytes += value.length;
+        const currentPct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
+        onProgress(currentPct);
+      }
+    }
+    blob = new Blob(chunks, { type: response.headers.get('content-type') || 'video/mp4' });
+    onProgress(100);
+  } else {
+    // Se não há stream de progresso nativo com tamanho prévio, simula avanços suaves
+    if (onProgress) onProgress(20);
+    let simulatedPct = 20;
+    const progressTimer = setInterval(() => {
+      simulatedPct = Math.min(95, simulatedPct + 15);
+      if (onProgress) onProgress(simulatedPct);
+    }, 350);
+
+    try {
+      blob = await response.blob();
+    } finally {
+      clearInterval(progressTimer);
+    }
+    if (onProgress) onProgress(100);
+  }
+
+  // Cria URL de blob local (mesma origem, 100% download nativo)
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = cleanName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(blobUrl);
+    if (document.body.contains(a)) document.body.removeChild(a);
+  }, 5000);
+}
+
+/**
  * Triggers download of a file reliably across Desktop (Windows/Mac) and Mobile (iOS Safari / Android).
  * Forces 100% direct file download without opening the browser's video player.
  */
@@ -114,73 +179,38 @@ export async function triggerDownload(
     return;
   }
 
-  // 1. Firebase Storage (Download Direto 100% Garantido via Blob Local)
-  // Como o Firebase Storage tem CORS liberado (Access-Control-Allow-Origin: *),
-  // fazemos o fetch dos bytes do arquivo e geramos uma URL de blob local (mesma origem).
+  // 1. Firebase Storage (Download Direto 100% Garantido via Blob Local ou /api/download)
+  // Fazemos o fetch dos bytes do arquivo e geramos uma URL de blob local (mesma origem).
   // URLs blob locais NUNCA abrem player de vídeo e FORÇAM o download direto no PC e Mobile.
   if (info.type === 'firebase') {
     const cleanName = suggestedFilename || info.fileName || 'producao_original.mp4';
+    const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(cleanName)}`;
 
     try {
-      const response = await fetch(info.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const contentLength = response.headers.get('content-length');
-      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
-      let blob: Blob;
-
-      if (response.body && totalBytes > 0 && onProgress) {
-        const reader = response.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let receivedBytes = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            receivedBytes += value.length;
-            onProgress(Math.min(99, Math.round((receivedBytes / totalBytes) * 100)));
-          }
-        }
-        blob = new Blob(chunks, { type: response.headers.get('content-type') || 'video/mp4' });
-        onProgress(100);
-      } else {
-        blob = await response.blob();
+      // 1. Tenta direto na URL do Firebase (se CORS estiver ativo no bucket)
+      await streamFetchBlob(info.url, cleanName, onProgress);
+      return;
+    } catch (corsErr) {
+      console.warn('Fetch direto no Firebase bloqueado por CORS, usando rota local /api/download com streaming e progresso:', corsErr);
+      try {
+        // 2. Tenta via /api/download (mesma origem na Vercel, sem bloqueio de CORS e com progresso em tempo real)
+        await streamFetchBlob(proxyUrl, cleanName, onProgress);
+        return;
+      } catch (proxyErr) {
+        console.warn('Fallback para navegação da rota de download:', proxyErr);
+        // 3. Fallback garantido: link direto na rota de download que força o Content-Disposition
         if (onProgress) onProgress(100);
+        const a = document.createElement('a');
+        a.href = proxyUrl;
+        a.setAttribute('download', cleanName);
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (document.body.contains(a)) document.body.removeChild(a);
+        }, 3000);
+        return;
       }
-
-      // Cria URL de blob local
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = cleanName;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-
-      setTimeout(() => {
-        URL.revokeObjectURL(blobUrl);
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 5000);
-
-      return;
-    } catch (err) {
-      console.warn('Erro no fetch direto do Firebase (provável CORS ainda não ativo no bucket), usando rota direta segura:', err);
-
-      // Fallback 100% garantido: rota /api/download que injeta Content-Disposition: attachment
-      // Isso força o download nativo do arquivo no disco e impede que o navegador abra o player de vídeo
-      const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(cleanName)}`;
-      const a = document.createElement('a');
-      a.href = proxyUrl;
-      a.setAttribute('download', cleanName);
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 3000);
-      return;
     }
   }
 

@@ -43,6 +43,7 @@ export default function ProjectDetail() {
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
+  const [isDownloadCompleted, setIsDownloadCompleted] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [isDirectUnlocked, setIsDirectUnlocked] = useState(false);
   const [unlockAnimationPhase, setUnlockAnimationPhase] = useState<'idle' | 'unlatch' | 'slide' | 'unlocked'>('idle');
@@ -453,19 +454,24 @@ export default function ProjectDetail() {
       return;
     }
     setIsDownloading(true);
+    setIsDownloadCompleted(false);
     setDownloadPercent(0);
     try {
       const cleanTitle = (project?.title || 'projeto').replace(/[/\\?%*:|"<>]/g, '_');
       await triggerDownload(url, `${cleanTitle}.mp4`, (percent) => {
         setDownloadPercent(percent);
       });
-      // Breve delay para feedback visual suave após conclusão
-      await new Promise(res => setTimeout(res, 800));
+      // 100% atingido: transiciona para o botão branco de download concluído
+      setDownloadPercent(100);
+      setIsDownloadCompleted(true);
+      // Mantém o estado branco concluído por 3.5 segundos para o usuário ver
+      await new Promise(res => setTimeout(res, 3500));
     } catch (err) {
       console.warn("Aviso ao processar download:", err);
     } finally {
       setIsDownloading(false);
       setDownloadPercent(null);
+      setIsDownloadCompleted(false);
       setShowDownloadModal(false);
       setDownloadCodeInput('');
     }
@@ -717,31 +723,93 @@ export default function ProjectDetail() {
                         setDownloadError('');
                       }
                     }}
-                    className={`group relative h-[42px] rounded-[13px] p-0 flex items-center overflow-hidden shadow-sm active:scale-[0.98] transition-all duration-200 cursor-pointer select-none ${isDirectUnlocked
-                        ? 'bg-[#52C31A] border-[2px] border-[#4AC80B] hover:brightness-105'
-                        : 'bg-neutral-950 border-[2px] border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900'
-                      }`}
+                    className={`group relative h-[42px] rounded-[13px] p-0 flex items-center overflow-hidden shadow-sm active:scale-[0.98] transition-all duration-200 cursor-pointer select-none border-[2px] ${
+                      isDownloadCompleted
+                        ? 'bg-white border-[#4AC80B]'
+                        : isDirectUnlocked
+                        ? 'bg-[#52C31A] border-[#4AC80B] hover:brightness-105'
+                        : 'bg-neutral-950 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900'
+                    }`}
                     title="Download do Projeto"
                   >
-                    {/* Caixa Branca com Ícone (Cadeado Fechado / Aberto) e Setinha */}
-                    <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0 z-10">
-                      {isDirectUnlocked ? (
-                        <Unlock size={16} className="text-[#52C31A] ml-0.5" strokeWidth={2.5} />
-                      ) : (
-                        <Lock size={16} className="text-neutral-950" strokeWidth={2.5} />
-                      )}
-                      <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
-                    </div>
+                    {(isDownloading || isDownloadCompleted) ? (
+                      <>
+                        {/* Camada Base (Fundo Verde com Texto Branco) */}
+                        <div className="absolute inset-0 flex items-center select-none pointer-events-none z-0">
+                          <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0">
+                            <span className="font-urbanist font-black text-[10px] text-[#52C31A] tracking-tighter">
+                              {downloadPercent ?? 0}%
+                            </span>
+                            <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
+                          </div>
+                          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist select-none overflow-hidden">
+                            <span className="font-urbanist font-bold text-[13px] tracking-wide text-white truncate w-full">
+                              Baixando... {downloadPercent !== null ? `${downloadPercent}%` : ''}
+                            </span>
+                            <span className="font-urbanist font-light text-[10px] text-white/95 truncate w-full">
+                              Aguarde a finalização
+                            </span>
+                          </div>
+                        </div>
 
-                    {/* Texto Download Liberado / Solicitar Download */}
-                    <div className="flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist">
-                      <span className="font-urbanist font-bold text-[13px] tracking-wide">
-                        {isDirectUnlocked ? (isDownloading ? (downloadPercent !== null ? `Baixando: ${downloadPercent}%` : "Iniciando Download...") : "Download Liberado") : "Solicitar Download"}
-                      </span>
-                      <span className={`font-urbanist font-light text-[10px] ${isDirectUnlocked ? 'text-white/95' : 'text-neutral-300'}`}>
-                        {isDirectUnlocked ? (isDownloading ? (downloadPercent !== null ? "Transferindo arquivo original..." : "Seu arquivo está sendo baixado") : "Clique aqui para iniciar o download") : "Cole o código para liberar"}
-                      </span>
-                    </div>
+                        {/* Camada Branca que vem enchendo até o final com Texto em Letra Verde */}
+                        <div
+                          className="absolute inset-0 bg-white z-10 pointer-events-none overflow-hidden transition-all duration-150 ease-out flex items-center select-none"
+                          style={{
+                            clipPath: `inset(0 ${100 - (isDownloadCompleted ? 100 : Math.min(100, Math.max(0, downloadPercent ?? 0)))}% 0 0)`,
+                            WebkitClipPath: `inset(0 ${100 - (isDownloadCompleted ? 100 : Math.min(100, Math.max(0, downloadPercent ?? 0)))}% 0 0)`,
+                          }}
+                        >
+                          <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0">
+                            {isDownloadCompleted ? (
+                              <motion.div
+                                key="desk-check"
+                                initial={{ scale: 0.3, opacity: 0 }}
+                                animate={{ scale: [0.3, 1.25, 1], opacity: 1 }}
+                                className="flex items-center justify-center"
+                              >
+                                <Check size={18} className="text-[#52C31A]" strokeWidth={3} />
+                              </motion.div>
+                            ) : (
+                              <span className="font-urbanist font-black text-[10px] text-[#52C31A] tracking-tighter">
+                                {downloadPercent ?? 0}%
+                              </span>
+                            )}
+                            <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
+                          </div>
+                          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pl-3.5 leading-tight font-urbanist select-none overflow-hidden">
+                            <span className="font-urbanist font-bold text-[13px] tracking-wide text-[#52C31A] truncate w-full">
+                              {isDownloadCompleted ? 'Download Concluído!' : `Baixando... ${downloadPercent !== null ? `${downloadPercent}%` : ''}`}
+                            </span>
+                            <span className="font-urbanist font-semibold text-[10px] text-[#52C31A] truncate w-full">
+                              {isDownloadCompleted ? 'Verifique em sua galeria' : 'Aguarde a finalização'}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* Caixa Branca com Ícone (Cadeado Fechado / Aberto) e Setinha */}
+                        <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0 z-10">
+                          {isDirectUnlocked ? (
+                            <Unlock size={16} className="text-[#52C31A] ml-0.5" strokeWidth={2.5} />
+                          ) : (
+                            <Lock size={16} className="text-neutral-950" strokeWidth={2.5} />
+                          )}
+                          <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
+                        </div>
+
+                        {/* Texto Download Liberado / Solicitar Download */}
+                        <div className="relative z-10 flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist">
+                          <span className="font-urbanist font-bold text-[13px] tracking-wide">
+                            {isDirectUnlocked ? "Download Liberado" : "Solicitar Download"}
+                          </span>
+                          <span className={`font-urbanist font-light text-[10px] ${isDirectUnlocked ? 'text-white/95' : 'text-neutral-300'}`}>
+                            {isDirectUnlocked ? "Clique para iniciar o download" : "Cole o código para liberar"}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </button>
                 )}
               </div>
@@ -1013,12 +1081,20 @@ export default function ProjectDetail() {
                     }
                   }}
                   animate={{
-                    backgroundColor: isGreenBg ? "#52C31A" : "#0d0d0d",
-                    borderColor: isGreenBg ? "#4AC80B" : "#262626",
+                    backgroundColor: isDownloadCompleted
+                      ? "#ffffff"
+                      : isGreenBg
+                      ? "#52C31A"
+                      : "#0d0d0d",
+                    borderColor: isDownloadCompleted
+                      ? "#4AC80B"
+                      : isGreenBg
+                      ? "#4AC80B"
+                      : "#262626",
                   }}
                   transition={{
-                    backgroundColor: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-                    borderColor: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
+                    backgroundColor: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+                    borderColor: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
                     layout: { type: "spring", stiffness: 120, damping: 18, mass: 0.8 },
                   }}
                   className={`group relative flex-1 h-[56px] rounded-2xl p-0 flex items-center overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-shadow duration-200 cursor-pointer select-none border-[2px] ${
@@ -1026,137 +1102,235 @@ export default function ProjectDetail() {
                   }`}
                   title="Download do Projeto"
                 >
-                  {/* Caixa Branca com Ícone (Cadeado Fechado na Direita / Aberto na Esquerda) */}
-                  <motion.div
-                    layout
-                    transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
-                    className={`relative h-full w-[56px] min-w-[56px] bg-white flex items-center justify-center flex-shrink-0 z-10 ${
-                      isShapeOnLeft ? 'rounded-l-[14px]' : 'rounded-r-[14px]'
-                    }`}
-                  >
-                    <AnimatePresence mode="wait">
-                      {!isUnlatched ? (
-                        <motion.div
-                          key="locked"
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.6, opacity: 0, rotate: -15 }}
-                          transition={{ duration: 0.2 }}
-                          className="flex items-center justify-center"
-                        >
-                          <Lock
-                            size={21}
-                            className="text-neutral-950 transition-transform duration-200 group-hover:scale-110"
-                            strokeWidth={2.5}
-                          />
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="unlocked"
-                          initial={{ scale: 0.4, rotate: -25, opacity: 0 }}
-                          animate={{ scale: [0.4, 1.3, 1], rotate: 0, opacity: 1 }}
-                          transition={{ duration: 0.45, ease: "backOut" }}
-                          className="relative flex items-center justify-center"
-                        >
-                          {/* Pulso de halo verde sutil em sincronia com o sweep */}
-                          {isContinuousUnlocked && (
-                            <div className="absolute w-7 h-7 rounded-full bg-[#52C31A]/35 pointer-events-none animate-lock-glow" />
-                          )}
+                  {(isDownloading || isDownloadCompleted) ? (
+                    <>
+                      {/* Camada Base (Fundo Verde com Texto Branco) */}
+                      <div className="absolute inset-0 flex items-center select-none pointer-events-none z-0">
+                        <div className="relative h-full w-[56px] min-w-[56px] bg-white flex items-center justify-center flex-shrink-0">
+                          <div className="relative flex items-center justify-center w-10 h-10">
+                            <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                              <circle cx="18" cy="18" r="14" stroke="#e6f7df" strokeWidth="2.5" fill="none" />
+                              <circle
+                                cx="18"
+                                cy="18"
+                                r="14"
+                                stroke="#52C31A"
+                                strokeWidth="2.8"
+                                fill="none"
+                                strokeDasharray="87.96"
+                                strokeDashoffset={87.96 - (87.96 * Math.min(100, Math.max(0, downloadPercent ?? 0))) / 100}
+                                strokeLinecap="round"
+                                className="transition-all duration-150 ease-out"
+                              />
+                            </svg>
+                            <span className="absolute font-urbanist font-black text-[10.5px] text-[#52C31A] tracking-tighter">
+                              {downloadPercent ?? 0}%
+                            </span>
+                          </div>
+                          <div className="absolute right-[-8px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent border-l-[8px] border-l-white z-20 pointer-events-none" />
+                        </div>
 
-                          {/* Ícone de Cadeado Desbloqueado com pulso e abertura da haste sincronizados com a passagem da luz */}
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="21"
-                            height="21"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className={`transition-colors duration-500 ${
-                              isGreenBg ? 'text-[#52C31A]' : 'text-neutral-950'
-                            } ml-0.5 relative z-10 ${
-                              isContinuousUnlocked ? 'animate-lock-pulse' : 'group-hover:scale-110'
-                            }`}
-                          >
-                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                            <path
-                              d="M7 11V7a5 5 0 0 1 9.9-1"
-                              className={isContinuousUnlocked ? 'animate-shackle-unlatch' : ''}
-                            />
-                          </svg>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Setinha Branca apontando para dentro do botão */}
-                    <motion.div
-                      key={isShapeOnLeft ? "notch-right-side" : "notch-left-side"}
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.25 }}
-                      className={`absolute top-1/2 -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent z-20 pointer-events-none ${
-                        isShapeOnLeft
-                          ? 'right-[-8px] border-l-[8px] border-l-white'
-                          : 'left-[-8px] border-r-[8px] border-r-white'
-                      }`}
-                    />
-                  </motion.div>
-
-                  {/* Seção com Texto: 
-                      - Liberado: alinhado à esquerda (pl-4 sm:pl-5), "Download Liberado" encima, "Clique aqui para iniciar o download" embaixo
-                      - Com código: alinhado à direita (pr-4 sm:pr-5), "Solicitar Download" encima, "Cole o código para liberar" embaixo
-                  */}
-                  <motion.div
-                    layout
-                    transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
-                    className={`flex-1 flex flex-col justify-center text-white leading-tight font-urbanist select-none overflow-hidden ${
-                      isShapeOnLeft ? 'items-start text-left pl-4 sm:pl-5 pr-3' : 'items-center text-center px-4'
-                    }`}
-                  >
-                    <AnimatePresence mode="wait">
-                      {isUnlockedText ? (
-                        <motion.div
-                          key="text-liberado"
-                          initial={{ opacity: 0, x: -6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 6 }}
-                          transition={{ duration: 0.22 }}
-                          className="flex flex-col items-start text-left w-full overflow-hidden"
-                        >
+                        <div className="flex-1 flex flex-col justify-center text-left pl-4 sm:pl-5 pr-3 text-white leading-tight font-urbanist select-none overflow-hidden">
                           <span className="font-urbanist font-bold text-[14.5px] sm:text-[15.5px] tracking-tight text-white leading-tight truncate w-full">
-                            {isDownloading ? (downloadPercent !== null ? `Baixando ${downloadPercent}%...` : "Iniciando Download...") : "Download Liberado"}
+                            Baixando Arquivo... {downloadPercent !== null ? `${downloadPercent}%` : ''}
                           </span>
                           <span className="font-urbanist font-light text-[10.5px] sm:text-[11.5px] text-white/95 mt-0.5 truncate w-full">
-                            {isDownloading ? (downloadPercent !== null ? "Transferindo direto para seu celular..." : "Seu arquivo está sendo baixado") : "Clique aqui para iniciar o download"}
+                            Aguarde a finalização do arquivo
                           </span>
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="text-bloqueado"
-                          initial={{ opacity: 0, scale: 0.96 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.96 }}
-                          transition={{ duration: 0.22 }}
-                          className="flex flex-col items-center text-center justify-center w-full px-1 overflow-hidden"
-                        >
-                          <span className="font-urbanist font-bold text-[15px] sm:text-[16px] tracking-tight text-white leading-tight truncate w-full">
-                            Solicitar Download
-                          </span>
-                          <span className="font-urbanist font-light text-[11px] sm:text-[11.5px] text-neutral-300 mt-0.5 truncate w-full">
-                            Cole o código para liberar
-                          </span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
+                        </div>
+                      </div>
 
-                  {/* Efeito Light Sweep de 3 em 3 segundos (da direita para esquerda) quando o download está liberado */}
-                  {isContinuousUnlocked && (
-                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-[25]">
-                      <div className="animate-light-sweep absolute inset-y-0 w-[140px] pointer-events-none" />
-                    </div>
+                      {/* Camada Branca que vem enchendo até o final com Texto em Letra Verde */}
+                      <div
+                        className="absolute inset-0 bg-white z-10 pointer-events-none overflow-hidden transition-all duration-150 ease-out flex items-center select-none"
+                        style={{
+                          clipPath: `inset(0 ${100 - (isDownloadCompleted ? 100 : Math.min(100, Math.max(0, downloadPercent ?? 0)))}% 0 0)`,
+                          WebkitClipPath: `inset(0 ${100 - (isDownloadCompleted ? 100 : Math.min(100, Math.max(0, downloadPercent ?? 0)))}% 0 0)`,
+                        }}
+                      >
+                        <div className="relative h-full w-[56px] min-w-[56px] bg-white flex items-center justify-center flex-shrink-0">
+                          {isDownloadCompleted ? (
+                            <motion.div
+                              key="mob-check"
+                              initial={{ scale: 0.3, opacity: 0 }}
+                              animate={{ scale: [0.3, 1.25, 1], opacity: 1 }}
+                              transition={{ duration: 0.35, ease: "backOut" }}
+                              className="flex items-center justify-center"
+                            >
+                              <Check size={23} className="text-[#52C31A]" strokeWidth={3} />
+                            </motion.div>
+                          ) : (
+                            <div className="relative flex items-center justify-center w-10 h-10">
+                              <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="14" stroke="#e6f7df" strokeWidth="2.5" fill="none" />
+                                <circle
+                                  cx="18"
+                                  cy="18"
+                                  r="14"
+                                  stroke="#52C31A"
+                                  strokeWidth="2.8"
+                                  fill="none"
+                                  strokeDasharray="87.96"
+                                  strokeDashoffset={87.96 - (87.96 * Math.min(100, Math.max(0, downloadPercent ?? 0))) / 100}
+                                  strokeLinecap="round"
+                                  className="transition-all duration-150 ease-out"
+                                />
+                              </svg>
+                              <span className="absolute font-urbanist font-black text-[10.5px] text-[#52C31A] tracking-tighter">
+                                {downloadPercent ?? 0}%
+                              </span>
+                            </div>
+                          )}
+                          <div className="absolute right-[-8px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent border-l-[8px] border-l-white z-20 pointer-events-none" />
+                        </div>
+
+                        <div className="flex-1 flex flex-col justify-center text-left pl-4 sm:pl-5 pr-3 leading-tight font-urbanist select-none overflow-hidden">
+                          <span className="font-urbanist font-bold text-[14.5px] sm:text-[15.5px] tracking-tight text-[#52C31A] leading-tight truncate w-full">
+                            {isDownloadCompleted
+                              ? 'Download Concluído!'
+                              : `Baixando Arquivo... ${downloadPercent !== null ? `${downloadPercent}%` : ''}`}
+                          </span>
+                          <span className="font-urbanist font-medium text-[10.5px] sm:text-[11.5px] text-[#52C31A] mt-0.5 truncate w-full">
+                            {isDownloadCompleted
+                              ? 'Verifique em sua galeria'
+                              : 'Aguarde a finalização do arquivo'}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Caixa Branca com Ícone (Cadeado Fechado / Aberto) */}
+                      <motion.div
+                        layout
+                        transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
+                        className={`relative h-full w-[56px] min-w-[56px] bg-white flex items-center justify-center flex-shrink-0 z-10 ${
+                          isShapeOnLeft ? 'rounded-l-[14px]' : 'rounded-r-[14px]'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          {!isUnlatched ? (
+                            <motion.div
+                              key="locked"
+                              initial={{ scale: 0.8, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0, opacity: 0, rotate: -20 }}
+                              transition={{ duration: 0.2 }}
+                              className="flex items-center justify-center"
+                            >
+                              <Lock
+                                size={21}
+                                className="text-neutral-950 transition-transform duration-200 group-hover:scale-110"
+                                strokeWidth={2.5}
+                              />
+                            </motion.div>
+                          ) : (
+                            <motion.div
+                              key="unlocked"
+                              initial={{ scale: 0.4, rotate: -25, opacity: 0 }}
+                              animate={{ scale: [0.4, 1.3, 1], rotate: 0, opacity: 1 }}
+                              exit={{ scale: 0, rotate: 20, opacity: 0 }}
+                              transition={{ duration: 0.45, ease: "backOut" }}
+                              className="relative flex items-center justify-center"
+                            >
+                              {/* Pulso de halo verde sutil em sincronia com o sweep */}
+                              {isContinuousUnlocked && (
+                                <div className="absolute w-7 h-7 rounded-full bg-[#52C31A]/35 pointer-events-none animate-lock-glow" />
+                              )}
+
+                              {/* Ícone de Cadeado Desbloqueado com pulso e abertura da haste sincronizados com a passagem da luz */}
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="21"
+                                height="21"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2.5}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className={`transition-colors duration-500 ${
+                                  isGreenBg ? 'text-[#52C31A]' : 'text-neutral-950'
+                                } ml-0.5 relative z-10 ${
+                                  isContinuousUnlocked ? 'animate-lock-pulse' : 'group-hover:scale-110'
+                                }`}
+                              >
+                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                <path
+                                  d="M7 11V7a5 5 0 0 1 9.9-1"
+                                  className={isContinuousUnlocked ? 'animate-shackle-unlatch' : ''}
+                                />
+                              </svg>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Setinha Branca apontando para dentro do botão */}
+                        <motion.div
+                          key={isShapeOnLeft ? "notch-right-side" : "notch-left-side"}
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.25 }}
+                          className={`absolute top-1/2 -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent z-20 pointer-events-none ${
+                            isShapeOnLeft
+                              ? 'right-[-8px] border-l-[8px] border-l-white'
+                              : 'left-[-8px] border-r-[8px] border-r-white'
+                          }`}
+                        />
+                      </motion.div>
+
+                      {/* Seção com Texto */}
+                      <motion.div
+                        layout
+                        transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
+                        className={`flex-1 flex flex-col justify-center text-white leading-tight font-urbanist select-none overflow-hidden relative z-10 ${
+                          isShapeOnLeft ? 'items-start text-left pl-4 sm:pl-5 pr-3' : 'items-center text-center px-4'
+                        }`}
+                      >
+                        <AnimatePresence mode="wait">
+                          {isUnlockedText ? (
+                            <motion.div
+                              key="text-liberado"
+                              initial={{ opacity: 0, x: -6 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: 6 }}
+                              transition={{ duration: 0.22 }}
+                              className="flex flex-col items-start text-left w-full overflow-hidden"
+                            >
+                              <span className="font-urbanist font-bold text-[14.5px] sm:text-[15.5px] tracking-tight text-white leading-tight truncate w-full">
+                                Download Liberado
+                              </span>
+                              <span className="font-urbanist font-light text-[10.5px] sm:text-[11.5px] text-white/95 mt-0.5 truncate w-full">
+                                Clique aqui para iniciar o download
+                              </span>
+                            </motion.div>
+                          ) : (
+                            <motion.div
+                              key="text-bloqueado"
+                              initial={{ opacity: 0, scale: 0.96 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.96 }}
+                              transition={{ duration: 0.22 }}
+                              className="flex flex-col items-center text-center justify-center w-full px-1 overflow-hidden"
+                            >
+                              <span className="font-urbanist font-bold text-[15px] sm:text-[16px] tracking-tight text-white leading-tight truncate w-full">
+                                Solicitar Download
+                              </span>
+                              <span className="font-urbanist font-light text-[11px] sm:text-[11.5px] text-neutral-300 mt-0.5 truncate w-full">
+                                Cole o código para liberar
+                              </span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+
+                      {/* Efeito Light Sweep de 3 em 3 segundos (da direita para esquerda) quando o download está liberado */}
+                      {isContinuousUnlocked && (
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-[25]">
+                          <div className="animate-light-sweep absolute inset-y-0 w-[140px] pointer-events-none" />
+                        </div>
+                      )}
+                    </>
                   )}
                 </motion.button>
               )}
