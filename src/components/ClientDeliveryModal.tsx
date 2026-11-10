@@ -77,7 +77,7 @@ Assista e baixe em alta resolução pelo link exclusivo:
 ${projUrl}
 (Seu acesso para download direto já está liberado pelo link acima)
 
-Código de liberação para download: ${code}
+Código de liberação para download: \`${code}\`
 
 Sua opinião é muito importante para nós! Avalie em menos de 1 minuto:
 ${evalUrl}
