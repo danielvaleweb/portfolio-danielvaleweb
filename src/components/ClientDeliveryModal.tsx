@@ -64,19 +64,20 @@ export default function ClientDeliveryModal({
   const projectDeliveryUrl = `${origin}/projeto/${project.id}?unlock=${downloadCode}`;
   const evaluationUrl = `${origin}/avaliar/${project.id}`;
 
-  // Formatted default message (sem emojis, com código de liberação)
+  // Formatted default message (com link de projeto unlock primeiro para garantir a capa no WhatsApp)
   const generateMessage = (code: string) => {
     const projUrl = `${origin}/projeto/${project.id}?unlock=${code}`;
     const evalUrl = `${origin}/avaliar/${project.id}`;
-    return `Olá${clientName ? ` ${clientName}` : ""}! Seu vídeo está pronto!
+    const greeting = clientName ? `Olá ${clientName}! Seu vídeo está pronto!` : `Olá! Seu vídeo está pronto!`;
+    return `${greeting}
 
-Preparamos o projeto *"${project.title}"* com todo o cuidado e a mais alta qualidade cinematográfica.
+Preparamos o projeto "${project.title}" com todo o cuidado e a mais alta qualidade cinematográfica.
 
 Assista e baixe em alta resolução pelo link exclusivo:
 ${projUrl}
 (Seu acesso para download direto já está liberado pelo link acima)
 
-Código de liberação para download: *${code}*
+Código de liberação para download: ${code}
 
 Sua opinião é muito importante para nós! Avalie em menos de 1 minuto:
 ${evalUrl}

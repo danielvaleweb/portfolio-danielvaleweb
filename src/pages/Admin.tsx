@@ -232,8 +232,33 @@ const Card = React.memo(({
       code = Math.random().toString(36).substring(2, 8).toUpperCase();
       updateProject(project.id, { downloadCode: code, allowDownload: true });
     }
-    const url = `${getPublicOrigin()}/projeto/${project.id}?unlock=${code}`;
-    const ok = await copyToClipboard(url);
+
+    const clients = getClients();
+    const linkedClient = clients.find(c => c.id === project.clientId);
+    const clientName = linkedClient?.name?.trim() || "";
+
+    const origin = getPublicOrigin();
+    const projUrl = `${origin}/projeto/${project.id}?unlock=${code}`;
+    const evalUrl = `${origin}/avaliar/${project.id}`;
+
+    const greeting = clientName ? `Olá ${clientName}! Seu vídeo está pronto!` : `Olá! Seu vídeo está pronto!`;
+
+    const fullMessage = `${greeting}
+
+Preparamos o projeto "${project.title}" com todo o cuidado e a mais alta qualidade cinematográfica.
+
+Assista e baixe em alta resolução pelo link exclusivo:
+${projUrl}
+(Seu acesso para download direto já está liberado pelo link acima)
+
+Código de liberação para download: ${code}
+
+Sua opinião é muito importante para nós! Avalie em menos de 1 minuto:
+${evalUrl}
+
+Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, estamos à disposição.`;
+
+    const ok = await copyToClipboard(fullMessage);
     if (ok) {
       setCopiedLink(true);
       onCopyLinkFeedback?.(project);
@@ -272,7 +297,7 @@ const Card = React.memo(({
           <p className="text-[13px] text-gray-500 dark:text-[#777] font-medium">{project.category}</p>
         </div>
         <div className="flex items-center gap-2.5 controls">
-          {/* Corrente: Copiar link de entrega do cliente (desbloqueado) */}
+          {/* Corrente: Copiar mensagem de entrega do cliente (desbloqueado) */}
           <button
             type="button"
             onClick={handleCopyLink}
@@ -280,7 +305,7 @@ const Card = React.memo(({
                 ? 'text-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40'
                 : 'text-gray-500 hover:text-black dark:text-[#888] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222]'
               }`}
-            title={copiedLink ? "Link de entrega copiado!" : "Copiar link de entrega do cliente"}
+            title={copiedLink ? "Mensagem completa copiada!" : "Copiar mensagem de entrega do cliente"}
           >
             {copiedLink ? <Check size={14} className="text-emerald-500" strokeWidth={2.5} /> : <Link size={14} strokeWidth={2.5} />}
           </button>
@@ -462,7 +487,7 @@ const Card = React.memo(({
         <div className="pt-2 border-t border-gray-100 dark:border-[#222] flex items-center justify-between controls">
           {/* Left actions: Corrente (copiar link) e Papel (adicionar nota). Ícone de check removido conforme solicitado */}
           <div className="flex items-center gap-0.5 text-gray-500 dark:text-[#888]">
-            {/* Corrente: Copiar link de entrega do cliente (desbloqueado) */}
+            {/* Corrente: Copiar mensagem de entrega do cliente (desbloqueado) */}
             <button
               type="button"
               onClick={handleCopyLink}
@@ -470,7 +495,7 @@ const Card = React.memo(({
                   ? 'text-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40'
                   : 'hover:bg-gray-100 dark:hover:bg-[#222] hover:text-black dark:hover:text-white'
                 }`}
-              title={copiedLink ? "Link de entrega copiado!" : "Copiar link de entrega do cliente"}
+              title={copiedLink ? "Mensagem completa copiada!" : "Copiar mensagem de entrega do cliente"}
             >
               {copiedLink ? (
                 <Check size={13} className="text-emerald-500" strokeWidth={2.5} />
@@ -717,7 +742,7 @@ export default function Admin() {
   };
 
   const handleCopyFeedback = (project: Project) => {
-    setCopyToast(`Link de entrega do projeto "${project.title}" copiado com acesso liberado!`);
+    setCopyToast(`Mensagem completa de entrega do projeto "${project.title}" copiada!`);
     setTimeout(() => setCopyToast(null), 3500);
   };
 
