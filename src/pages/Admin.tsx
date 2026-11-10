@@ -7,7 +7,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, auth } from "../firebase";
 import { signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import AdminLogin, { isAuthorizedAdminEmail } from '../components/AdminLogin';
-import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore, getNotes, addNote, deleteNote } from '../utils/storage';
+import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore, getNotes, addNote, deleteNote, addFinancialTransaction, updateFinancialTransaction, getProjectFinancialTransaction, getFinancialTransactions } from '../utils/storage';
 import { getPublicOrigin } from '../utils/urlHelper';
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
@@ -199,6 +199,7 @@ const Card = React.memo(({
   onAddNote,
   onCopyLinkFeedback,
   onUpdateVisibility,
+  onOpenFinancialPrompt,
 }: {
   project: Project,
   viewMode?: 'grid' | 'list',
@@ -212,6 +213,7 @@ const Card = React.memo(({
   onAddNote?: (project: Project) => void,
   onCopyLinkFeedback?: (project: Project) => void,
   onUpdateVisibility?: (projectId: string, visibility: 'public' | 'unlisted') => void,
+  onOpenFinancialPrompt?: (project: Project) => void,
   key?: any;
 }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -286,11 +288,23 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
           {logo}
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-[15px] font-bold text-gray-900 dark:text-white mb-0.5 leading-tight">{project.title}</h3>
             {isFavorite && (
               <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 text-[10px] font-bold flex items-center gap-1 shadow-xs">
                 <Star size={9} className="fill-amber-500 text-amber-500" /> Destaque
+              </span>
+            )}
+            {typeof project.price === 'number' && project.price > 0 && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenFinancialPrompt?.(project);
+                }}
+                className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer transition-colors"
+                title="Ganho registrado no Financeiro (clique para editar)"
+              >
+                <DollarSign size={10} strokeWidth={2.5} /> R$ {project.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </span>
             )}
           </div>
@@ -416,7 +430,17 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
             </button>
             {showMenu && (
               <div className="absolute right-0 top-6 w-52 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded-xl shadow-lg py-1 z-[60]">
-                <button onClick={() => { setShowMenu(false); onActionClick?.('clientDelivery', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2 cursor-pointer">
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    onOpenFinancialPrompt?.(project);
+                  }}
+                  className="w-full text-left px-4 py-2 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <DollarSign size={13} />
+                  {project.price ? 'Editar ganho financeiro' : 'Lançar ganho no financeiro'}
+                </button>
+                <button onClick={() => { setShowMenu(false); onActionClick?.('clientDelivery', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-gray-700 dark:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#222] transition-colors flex items-center gap-2 cursor-pointer">
                   <Link size={13} />
                   Gerar link para cliente
                 </button>
@@ -467,6 +491,18 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
           <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#1e293b]/60 dark:text-[#60a5fa] dark:border-[#334155] text-[9.5px] font-semibold transition-colors">
             {project.category || 'Categoria'}
           </span>
+          {typeof project.price === 'number' && project.price > 0 && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenFinancialPrompt?.(project);
+              }}
+              className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-500/40 text-[9px] font-bold transition-colors flex items-center gap-0.5 shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer"
+              title="Ganho registrado no Financeiro (clique para editar)"
+            >
+              <DollarSign size={8} strokeWidth={2.5} /> R$ {project.price.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+            </span>
+          )}
           {isFavorite && (
             <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-500/40 text-[9px] font-bold transition-colors flex items-center gap-1 shadow-xs">
               <Star size={9} className="fill-amber-500 text-amber-500" /> Destaque
@@ -624,6 +660,16 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
 
             {showMenu && (
               <div className="absolute right-0 bottom-10 w-52 bg-white dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-xl shadow-xl py-1 z-[60] controls overflow-hidden">
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    onOpenFinancialPrompt?.(project);
+                  }}
+                  className="w-full text-left px-4 py-2 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <DollarSign size={13} />
+                  {project.price ? 'Editar ganho financeiro' : 'Lançar ganho no financeiro'}
+                </button>
                 <button onClick={() => { setShowMenu(false); onActionClick?.('clientDelivery', project); }} className="w-full text-left px-4 py-2 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2 cursor-pointer">
                   <Link size={13} />
                   Gerar link para cliente
@@ -718,6 +764,13 @@ export default function Admin() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteModalProject, setNoteModalProject] = useState<Project | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+
+  // Estados para perguntar o ganho assim que cadastrar um novo projeto
+  const [financialPromptProject, setFinancialPromptProject] = useState<Project | null>(null);
+  const [promptAmount, setPromptAmount] = useState<string>('');
+  const [promptStatus, setPromptStatus] = useState<'paid' | 'pending'>('paid');
+  const [promptCategory, setPromptCategory] = useState<string>('Produção Audiovisual');
+  const [promptMethod, setPromptMethod] = useState<'pix' | 'cartao' | 'transferencia' | 'boleto' | 'dinheiro'>('pix');
 
   useEffect(() => {
     setNotes(getNotes());
@@ -939,15 +992,153 @@ export default function Admin() {
     setTimeout(() => setCopyToast(null), 3500);
   };
 
-  const handleSaveProject = (data: Partial<Project>) => {
+  const handleSaveProject = (data: Partial<Project>, paymentStatus: 'paid' | 'pending' = 'paid') => {
     if (editingProject) {
       updateProject(editingProject.id, data);
+
+      if (typeof data.price === 'number' && data.price > 0) {
+        const existingTx = getProjectFinancialTransaction(editingProject.id);
+        const clientObj = data.clientId ? realClients.find(c => c.id === data.clientId) : undefined;
+        if (existingTx) {
+          updateFinancialTransaction(existingTx.id, {
+            amount: data.price,
+            description: `Produção: ${data.title || editingProject.title}`,
+            projectTitle: data.title || editingProject.title,
+            clientId: data.clientId,
+            clientName: clientObj?.name || (data as any).clientName || existingTx.clientName || '',
+            status: paymentStatus,
+          });
+        } else {
+          addFinancialTransaction({
+            description: `Produção: ${data.title || editingProject.title}`,
+            amount: data.price,
+            type: 'income',
+            category: (data.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
+                       data.category === 'Publicidade' ? 'Comercial / Publicitário' :
+                       data.category === 'Eventos' ? 'Cobertura de Evento' :
+                       'Produção Audiovisual'),
+            date: new Date().toISOString().split('T')[0],
+            status: paymentStatus,
+            projectId: editingProject.id,
+            projectTitle: data.title || editingProject.title,
+            clientId: data.clientId,
+            clientName: clientObj?.name || '',
+            paymentMethod: 'pix',
+          });
+        }
+      }
+
+      setRealProjects(getProjects());
+      setIsCreating(false);
+      setEditingProject(null);
+      setCopyToast(`Projeto "${data.title || editingProject.title}" atualizado com sucesso!`);
+      setTimeout(() => setCopyToast(null), 3500);
     } else {
-      addProject(data as Omit<Project, 'id'>);
+      const createdProject = addProject(data as Omit<Project, 'id'>);
+      setRealProjects(getProjects());
+      setIsCreating(false);
+      setEditingProject(null);
+
+      // Se o usuário já preencheu o valor no formulário
+      if (typeof data.price === 'number' && data.price > 0) {
+        const clientObj = data.clientId ? realClients.find(c => c.id === data.clientId) : undefined;
+        addFinancialTransaction({
+          description: `Produção: ${createdProject.title}`,
+          amount: data.price,
+          type: 'income',
+          category: (createdProject.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
+                     createdProject.category === 'Publicidade' ? 'Comercial / Publicitário' :
+                     createdProject.category === 'Eventos' ? 'Cobertura de Evento' :
+                     'Produção Audiovisual'),
+          date: new Date().toISOString().split('T')[0],
+          status: paymentStatus,
+          projectId: createdProject.id,
+          projectTitle: createdProject.title,
+          clientId: createdProject.clientId,
+          clientName: clientObj?.name || '',
+          paymentMethod: 'pix',
+        });
+        setCopyToast(`🎉 Projeto criado e ganho de R$ ${data.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} lançado no Financeiro!`);
+        setTimeout(() => setCopyToast(null), 4000);
+      } else {
+        // Pergunta imediatamente: "Quanto foi ganho por aquele projeto?"
+        setFinancialPromptProject(createdProject);
+        setPromptAmount('');
+        setPromptStatus(paymentStatus);
+        setPromptMethod('pix');
+        setPromptCategory(
+          createdProject.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
+          createdProject.category === 'Publicidade' ? 'Comercial / Publicitário' :
+          createdProject.category === 'Eventos' ? 'Cobertura de Evento' :
+          'Produção Audiovisual'
+        );
+      }
     }
-    setRealProjects(getProjects());
-    setIsCreating(false);
-    setEditingProject(null);
+  };
+
+  const handleOpenFinancialForProject = (project: Project) => {
+    const existingTx = getProjectFinancialTransaction(project.id);
+    setFinancialPromptProject(project);
+    setPromptAmount(
+      project.price
+        ? project.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+        : existingTx
+        ? existingTx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+        : ''
+    );
+    setPromptStatus(existingTx?.status || 'paid');
+    setPromptMethod(existingTx?.paymentMethod || 'pix');
+    setPromptCategory(
+      existingTx?.category ||
+      (project.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
+       project.category === 'Publicidade' ? 'Comercial / Publicitário' :
+       project.category === 'Eventos' ? 'Cobertura de Evento' :
+       'Produção Audiovisual')
+    );
+  };
+
+  const handleSaveFinancialPrompt = () => {
+    if (!financialPromptProject) return;
+    const cleanAmount = parseFloat(promptAmount.replace(/\./g, '').replace(',', '.'));
+    if (!isNaN(cleanAmount) && cleanAmount > 0) {
+      const clientObj = financialPromptProject.clientId ? realClients.find(c => c.id === financialPromptProject.clientId) : undefined;
+      const existingTx = getProjectFinancialTransaction(financialPromptProject.id);
+
+      if (existingTx) {
+        updateFinancialTransaction(existingTx.id, {
+          amount: cleanAmount,
+          description: `Produção: ${financialPromptProject.title}`,
+          projectTitle: financialPromptProject.title,
+          clientId: financialPromptProject.clientId,
+          clientName: clientObj?.name || existingTx.clientName || '',
+          category: promptCategory || existingTx.category || 'Produção Audiovisual',
+          status: promptStatus,
+          paymentMethod: promptMethod,
+        });
+      } else {
+        addFinancialTransaction({
+          description: `Produção: ${financialPromptProject.title}`,
+          amount: cleanAmount,
+          type: 'income',
+          category: promptCategory || 'Produção Audiovisual',
+          date: new Date().toISOString().split('T')[0],
+          status: promptStatus,
+          projectId: financialPromptProject.id,
+          projectTitle: financialPromptProject.title,
+          clientId: financialPromptProject.clientId,
+          clientName: clientObj?.name || '',
+          paymentMethod: promptMethod,
+        });
+      }
+
+      // Atualiza o preço no próprio projeto
+      updateProject(financialPromptProject.id, { price: cleanAmount });
+      setRealProjects(getProjects());
+
+      setCopyToast(`💰 Ganho de R$ ${cleanAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} lançado no Financeiro!`);
+      setTimeout(() => setCopyToast(null), 4000);
+    }
+    setFinancialPromptProject(null);
   };
 
 
@@ -2106,6 +2297,7 @@ service cloud.firestore {
                           onAddNote={(proj) => setNoteModalProject(proj)}
                           onCopyLinkFeedback={handleCopyFeedback}
                           onUpdateVisibility={handleUpdateProjectVisibility}
+                          onOpenFinancialPrompt={handleOpenFinancialForProject}
                         />
                       );
                     })}
@@ -2651,6 +2843,182 @@ service cloud.firestore {
         }}
         lang={lang}
       />
+
+      {/* Financial Post-Creation Prompt Modal */}
+      {financialPromptProject && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#181818] border border-gray-200 dark:border-[#2a2a2a] rounded-3xl w-full max-w-lg p-6 sm:p-7 shadow-2xl relative">
+            <button
+              onClick={() => setFinancialPromptProject(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#252525] transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-sm">
+                <DollarSign size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                  Registrar Ganho no Financeiro
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Projeto cadastrado! Quanto foi cobrado por este trabalho?
+                </p>
+              </div>
+            </div>
+
+            {/* Project Summary Card */}
+            <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-[#121212] border border-gray-200/80 dark:border-[#262626] mb-5 flex items-center justify-between">
+              <div className="min-w-0 pr-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Projeto</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                  {financialPromptProject.title}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {financialPromptProject.category || 'Geral'}
+                  {financialPromptProject.clientId && (
+                    <span> • {realClients.find(c => c.id === financialPromptProject.clientId)?.name || 'Cliente'}</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 whitespace-nowrap">
+                Novo Ganho
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {/* Amount Input */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                  Valor Cobrado / Ganho (R$)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    R$
+                  </span>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={promptAmount}
+                    onChange={(e) => setPromptAmount(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveFinancialPrompt();
+                    }}
+                    placeholder="Ex: 2.500,00"
+                    className="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#202020] border-2 border-emerald-500/40 focus:border-emerald-500 rounded-xl text-base font-bold text-gray-900 dark:text-white focus:outline-none transition-colors"
+                  />
+                </div>
+                {/* Quick preset chips */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[10px] text-gray-400 mr-1">Sugestões:</span>
+                  {[500, 800, 1200, 1500, 2000, 2500, 3500].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setPromptAmount(val.toLocaleString('pt-BR', { minimumFractionDigits: 2 }))}
+                      className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-[#252525] text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+                    >
+                      R$ {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Status & Method */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                    Status do Pagamento
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-gray-100 dark:bg-[#222] rounded-xl border border-gray-200 dark:border-[#333]">
+                    <button
+                      type="button"
+                      onClick={() => setPromptStatus('paid')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        promptStatus === 'paid'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
+                      }`}
+                    >
+                      Recebido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPromptStatus('pending')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        promptStatus === 'pending'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
+                      }`}
+                    >
+                      A Receber
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                    Forma de Pagamento
+                  </label>
+                  <select
+                    value={promptMethod}
+                    onChange={(e: any) => setPromptMethod(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-100 dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-xl text-xs font-medium text-gray-900 dark:text-white focus:outline-none"
+                  >
+                    <option value="pix">Pix</option>
+                    <option value="cartao">Cartão de Crédito</option>
+                    <option value="transferencia">Transferência TED</option>
+                    <option value="boleto">Boleto</option>
+                    <option value="dinheiro">Dinheiro</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                  Categoria no Financeiro
+                </label>
+                <select
+                  value={promptCategory}
+                  onChange={(e) => setPromptCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-100 dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-xl text-xs font-medium text-gray-900 dark:text-white focus:outline-none"
+                >
+                  <option value="Produção Audiovisual">Produção Audiovisual</option>
+                  <option value="Vídeo Imobiliário">Vídeo Imobiliário</option>
+                  <option value="Comercial / Publicitário">Comercial / Publicitário</option>
+                  <option value="Cobertura de Evento">Cobertura de Evento</option>
+                  <option value="Ensaio Fotográfico">Ensaio Fotográfico</option>
+                  <option value="Edição / Pós-Produção">Edição / Pós-Produção</option>
+                  <option value="Piloto de Drone">Piloto de Drone</option>
+                  <option value="Outro">Outro Ganho</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-gray-100 dark:border-[#262626]">
+              <button
+                type="button"
+                onClick={() => setFinancialPromptProject(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+              >
+                Pular / Definir Depois
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveFinancialPrompt}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <DollarSign size={14} />
+                Lançar no Financeiro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Toast Notification for Link Copy */}
       <AnimatePresence>

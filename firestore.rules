@@ -96,6 +96,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Módulo Financeiro (Ganhos e Contas do Videomaker)
+    match /financial_transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
     // Configurações do sistema
     match /configuracoes/{configId} {
       allow read, write: if true;

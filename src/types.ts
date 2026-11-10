@@ -19,6 +19,7 @@ export interface Project {
   downloadCode?: string;
   createdAt?: number;
   order?: number;
+  price?: number;
 }
 
 export const projects: Project[] = [];
@@ -167,5 +168,30 @@ export interface HomepageCategoryConfig {
   visible: boolean;
   order?: number;
 }
+
+// -------------------------------------------------------------
+// MÓDULO FINANCEIRO (Coleção: 'financial_transactions')
+// -------------------------------------------------------------
+export type TransactionType = 'income' | 'expense'; // 'income' (Ganho/Receita) | 'expense' (Conta/Despesa)
+export type TransactionStatus = 'paid' | 'pending'; // 'paid' (Recebido/Pago) | 'pending' (A Receber/Pendente)
+
+export interface FinancialTransaction {
+  id: string;
+  description: string;
+  amount: number; // Valor positivo em R$
+  type: TransactionType;
+  category: string;
+  date: string; // YYYY-MM-DD
+  status: TransactionStatus;
+  projectId?: string;
+  projectTitle?: string;
+  clientId?: string;
+  clientName?: string;
+  paymentMethod?: 'pix' | 'cartao' | 'transferencia' | 'boleto' | 'dinheiro' | 'outro';
+  notes?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 
 

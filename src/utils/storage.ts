@@ -15,7 +15,8 @@ import {
   CalendarEvent,
   KnowledgeArticle,
   SupportTicket,
-  HomepageCategoryConfig
+  HomepageCategoryConfig,
+  FinancialTransaction
 } from "../types";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { storage, db } from "../firebase";
@@ -899,6 +900,12 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
       await setDoc(doc(db, "leads", l.id), cleanFirestoreData(l)).catch(() => {});
     }
 
+    // Salva transações financeiras (Coleção: 'financial_transactions')
+    const financialTransactions = getFinancialTransactions();
+    for (const tx of financialTransactions) {
+      await setDoc(doc(db, "financial_transactions", tx.id), cleanFirestoreData(tx)).catch(() => {});
+    }
+
     // Salva configurações de exibição da homepage
     const homepageCats = getHomepageCategories();
     await setDoc(doc(db, "configuracoes", "homepage_categorias"), {
@@ -1463,6 +1470,102 @@ export function addSupportTicket(newTicket: Omit<SupportTicket, 'id' | 'createdA
   return ticket;
 }
 
+// -------------------------------------------------------------
+// FINANCEIRO (Collection: 'financial_transactions')
+// -------------------------------------------------------------
+export const FINANCIAL_STORAGE_KEY = "danivaleweb_financial_transactions";
+
+export function getFinancialTransactions(): FinancialTransaction[] {
+  try {
+    const stored = localStorage.getItem(FINANCIAL_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed.sort((a, b) => {
+          // Mais recentes primeiro
+          const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        });
+      }
+    }
+  } catch (error) {
+    console.warn("Aviso ao ler transações financeiras", error);
+  }
+  return [];
+}
+
+export function saveFinancialTransactions(transactions: FinancialTransaction[]): void {
+  try {
+    localStorage.setItem(FINANCIAL_STORAGE_KEY, JSON.stringify(transactions));
+    window.dispatchEvent(new Event("financial-updated"));
+  } catch (error) {
+    console.warn("Aviso ao salvar transações financeiras", error);
+  }
+}
+
+export function addFinancialTransaction(
+  newTx: Omit<FinancialTransaction, "id" | "createdAt">
+): FinancialTransaction {
+  const list = getFinancialTransactions();
+  const now = Date.now();
+  const id = "tx_" + now + "_" + Math.random().toString(36).substring(2, 6);
+  const transaction: FinancialTransaction = {
+    ...newTx,
+    id,
+    createdAt: now,
+    updatedAt: now,
+  };
+  list.unshift(transaction);
+  saveFinancialTransactions(list);
+
+  setDoc(doc(db, "financial_transactions", id), cleanFirestoreData(transaction)).catch((err) => {
+    console.warn("Aviso ao sincronizar transação financeira com Firestore:", err);
+  });
+
+  return transaction;
+}
+
+export function updateFinancialTransaction(
+  id: string,
+  updated: Partial<FinancialTransaction>
+): void {
+  const list = getFinancialTransactions();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx !== -1) {
+    const updatedTx: FinancialTransaction = {
+      ...list[idx],
+      ...updated,
+      updatedAt: Date.now(),
+    };
+    list[idx] = updatedTx;
+    saveFinancialTransactions(list);
+
+    setDoc(doc(db, "financial_transactions", id), cleanFirestoreData(updatedTx), {
+      merge: true,
+    }).catch((err) => {
+      console.warn("Aviso ao atualizar transação financeira no Firestore:", err);
+    });
+  }
+}
+
+export function deleteFinancialTransaction(id: string): void {
+  const list = getFinancialTransactions();
+  const filtered = list.filter((t) => t.id !== id);
+  saveFinancialTransactions(filtered);
+
+  deleteDoc(doc(db, "financial_transactions", id)).catch((err) => {
+    console.warn("Aviso ao deletar transação financeira no Firestore:", err);
+  });
+}
+
+export function getProjectFinancialTransaction(
+  projectId: string
+): FinancialTransaction | undefined {
+  const list = getFinancialTransactions();
+  return list.find((t) => t.projectId === projectId);
+}
+
 // Automatic cleanup and real-time synchronization listeners with Cloud Firestore
 if (typeof window !== "undefined") {
   // Purge any fictitious projects and clients from local storage immediately on startup
@@ -1649,6 +1752,17 @@ if (typeof window !== "undefined") {
           localStorage.setItem(HOMEPAGE_CATEGORIES_KEY, JSON.stringify(data.categories));
           window.dispatchEvent(new CustomEvent('homepage-categories-updated', { detail: data.categories }));
         }
+      }
+    }, () => {});
+  } catch (err) {}
+
+  // 10. Financial Transactions listener (Coleção: 'financial_transactions')
+  try {
+    onSnapshot(collection(db, "financial_transactions"), (snapshot) => {
+      if (!snapshot.empty) {
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FinancialTransaction));
+        localStorage.setItem(FINANCIAL_STORAGE_KEY, JSON.stringify(list));
+        window.dispatchEvent(new Event("financial-updated"));
       }
     }, () => {});
   } catch (err) {}

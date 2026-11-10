@@ -2,15 +2,15 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
-import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff } from 'lucide-react';
-import { getClients, updateProject } from '../utils/storage';
+import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff, DollarSign } from 'lucide-react';
+import { getClients, updateProject, getProjectFinancialTransaction } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
 
 interface ProjectFormProps {
   project?: Project | null;
   initialCategory?: string;
-  onSave: (data: Partial<Project>) => void;
+  onSave: (data: Partial<Project>, paymentStatus?: 'paid' | 'pending') => void;
   onCancel: () => void;
   onDelete?: (project: Project) => void;
   onNavigateToClients?: () => void;
@@ -95,8 +95,11 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       images: [],
       allowDownload: false,
       downloadUrl: '',
+      price: project?.price || undefined,
     }
   );
+
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
 
   useEffect(() => {
     const updateClients = () => {
@@ -125,6 +128,10 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
         showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
         images: (project.images && project.images.length > 0) ? project.images : (prev.images || [])
       }));
+      const existingTx = getProjectFinancialTransaction(project.id);
+      if (existingTx) {
+        setPaymentStatus(existingTx.status);
+      }
     }
   }, [project]);
 
@@ -372,7 +379,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       saveGalleryToIndexedDB(project.id, formData.images);
       updateProject(project.id, { images: formData.images });
     }
-    onSave(formData);
+    onSave(formData, paymentStatus);
   };
 
   const handleAddTag = () => {
@@ -872,6 +879,60 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
                  )}
                </div>
              )}
+          </div>
+
+          {/* ---------------- FINANCEIRO DO PROJETO ---------------- */}
+          <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-5 space-y-4 md:col-span-2 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <DollarSign size={18} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">Financeiro do Projeto</h4>
+                  <p className="text-xs text-gray-500 dark:text-[#888]">Monitore o valor cobrado e o ganho obtido com esta produção</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-700/50 w-fit">
+                Coleção Financeiro
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-gray-700 dark:text-[#bbb] uppercase tracking-wider">
+                  Valor Cobrado / Ganho (R$)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.price !== undefined ? formData.price : ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value === '' ? undefined : parseFloat(e.target.value) }))}
+                    placeholder="Ex: 3500.00"
+                    className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-[#777]">Este valor cairá diretamente no seu menu de Financeiro.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-gray-700 dark:text-[#bbb] uppercase tracking-wider">
+                  Status do Pagamento
+                </label>
+                <select
+                  value={paymentStatus}
+                  onChange={(e) => setPaymentStatus(e.target.value as 'paid' | 'pending')}
+                  className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors"
+                >
+                  <option value="paid">✓ Já Recebido (Entrada no Caixa)</option>
+                  <option value="pending">⏳ A Receber / Pendente</option>
+                </select>
+                <p className="text-[11px] text-gray-500 dark:text-[#777]">Defina se o valor já foi pago pelo cliente ou se está pendente.</p>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2 md:col-span-2">
