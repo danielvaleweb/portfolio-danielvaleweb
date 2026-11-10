@@ -41,7 +41,7 @@ function BlurImage({ project }: { project: Project }) {
   );
 }
 
-function VideoSection({ title, subtitle, projects, id }: { title: string; subtitle: string; projects: Project[]; id?: string }) {
+function VideoSection({ title, subtitle, projects, id }: { title: string; subtitle: string; projects: Project[]; id?: string; key?: any }) {
   const navigate = useNavigate();
   const [visibleCount, setVisibleCount] = useState(4); // Exibir de 4 em 4
 

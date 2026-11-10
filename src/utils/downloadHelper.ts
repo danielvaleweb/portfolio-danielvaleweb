@@ -1,12 +1,14 @@
 /**
- * Download helper utilities for handling cloud storage URLs (Google Drive, Dropbox, Firebase Storage, etc.)
- * Prevents saving HTML preview pages (like view.htm) and ensures direct file downloads.
+ * Download helper utilities for handling cloud storage URLs (Firebase Storage, Google Drive, Dropbox, etc.)
+ * Gives absolute priority to Firebase Storage for ultra-fast, direct single-system downloads
+ * while preserving optional Google Drive / Dropbox external link support.
  */
 
 export interface DownloadUrlInfo {
   url: string;
-  type: 'google-drive-file' | 'google-drive-folder' | 'dropbox' | 'direct';
+  type: 'firebase' | 'google-drive-file' | 'google-drive-folder' | 'dropbox' | 'direct';
   label?: string;
+  fileName?: string;
 }
 
 /**
@@ -19,7 +21,36 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
 
   const trimmed = rawUrl.trim();
 
-  // 1. Google Drive Folder
+  // 1. Firebase Storage (Prioridade Máxima - Sistema Unificado)
+  if (trimmed.includes('firebasestorage.googleapis.com') || trimmed.includes('firebasestorage.app')) {
+    let firebaseUrl = trimmed;
+    let extractedName = '';
+    try {
+      const match = firebaseUrl.match(/\/o\/([^?#]+)/);
+      if (match) {
+        const decoded = decodeURIComponent(match[1]);
+        const parts = decoded.split('/');
+        extractedName = parts[parts.length - 1];
+        // Remove prefixo timestamp ex: 1731234567_
+        extractedName = extractedName.replace(/^\d+_/, '');
+      }
+    } catch {}
+
+    const cleanFilename = extractedName || 'arquivo_alta_resolucao.mp4';
+    if (!firebaseUrl.includes('response-content-disposition')) {
+      const sep = firebaseUrl.includes('?') ? '&' : '?';
+      firebaseUrl += `${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanFilename)}"`;
+    }
+
+    return {
+      url: firebaseUrl,
+      type: 'firebase',
+      label: 'Arquivo Firebase Storage (Download Direto)',
+      fileName: cleanFilename
+    };
+  }
+
+  // 2. Google Drive Folder
   const isGoogleDriveFolder = /drive\.google\.com\/(?:drive\/)?(?:u\/\d+\/)?folders\/([a-zA-Z0-9_-]+)/i.test(trimmed);
   if (isGoogleDriveFolder) {
     return {
@@ -29,25 +60,20 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
     };
   }
 
-  // 2. Google Drive File
-  // Examples:
-  // drive.google.com/file/d/FILE_ID/view?usp=sharing
-  // drive.google.com/open?id=FILE_ID
-  // drive.google.com/uc?id=FILE_ID
-  // docs.google.com/file/d/FILE_ID
+  // 3. Google Drive File
   const fileDMatch = trimmed.match(/(?:drive|docs)\.google\.com\/file\/d\/([a-zA-Z0-9_-]{15,})/i);
   const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]{15,})/i);
-  const fileId = fileDMatch ? fileDMatch[1] : (idParamMatch && /drive\.google\.com/i.test(trimmed) ? idParamMatch[1] : null);
+  const fileId = fileDMatch ? fileDMatch[1] : (idParamMatch && /google\.com/i.test(trimmed) ? idParamMatch[1] : null);
 
   if (fileId) {
     return {
-      url: `https://drive.google.com/uc?export=download&id=${fileId}`,
+      url: `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
       type: 'google-drive-file',
       label: 'Arquivo do Google Drive'
     };
   }
 
-  // 3. Dropbox
+  // 4. Dropbox
   if (/dropbox\.com\//i.test(trimmed)) {
     let dropboxUrl = trimmed;
     if (dropboxUrl.includes('dl=0')) {
@@ -62,7 +88,7 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
     };
   }
 
-  // 4. Direct file / Firebase Storage / other URL
+  // 5. Direct file / other URL
   return {
     url: trimmed,
     type: 'direct'
@@ -70,70 +96,101 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
 }
 
 /**
- * Triggers download of a file safely without forcing HTML downloads (like view.htm)
+ * Triggers download of a file reliably across Desktop (Windows/Mac) and Mobile (iOS Safari / Android).
  */
-export async function triggerDownload(rawUrl: string): Promise<void> {
+export async function triggerDownload(rawUrl: string, suggestedFilename?: string): Promise<void> {
   if (!rawUrl) return;
 
   const info = parseDownloadUrl(rawUrl);
 
-  // If it's a Google Drive folder:
-  // Open the folder directly in a new tab so user can browse/download all items.
+  // Se for pasta do Google Drive: abre em nova aba
   if (info.type === 'google-drive-folder') {
     window.open(info.url, '_blank', 'noopener,noreferrer');
     return;
   }
 
-  // If it's a Google Drive file:
-  // Use Google Drive's direct download endpoint.
-  // CRITICAL: NEVER use a.download attribute here, because a.download will override
-  // the server's Content-Disposition attachment header and cause Chrome to save view.htm / uc.htm!
-  if (info.type === 'google-drive-file') {
-    const a = document.createElement('a');
-    a.href = info.url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  // 1. Firebase Storage (Download Direto Prioritário)
+  if (info.type === 'firebase') {
+    let directUrl = info.url;
+    if (!directUrl.includes('response-content-disposition')) {
+      const cleanName = suggestedFilename || info.fileName || 'arquivo_alta_resolucao.mp4';
+      const sep = directUrl.includes('?') ? '&' : '?';
+      directUrl += `${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanName)}"`;
+    }
+
+    if (isMobile) {
+      // No Mobile (iOS Safari / Android Chrome): navega direto para a URL com cabeçalho de anexo
+      // O navegador aciona a folha/notificação nativa de download sem abrir telas em branco
+      window.location.assign(directUrl);
+    } else {
+      // No PC Desktop: link programático oculto dispara direto para o download manager
+      const a = document.createElement('a');
+      a.href = directUrl;
+      a.style.display = 'none';
+      if (suggestedFilename || info.fileName) {
+        a.setAttribute('download', suggestedFilename || info.fileName || '');
+      }
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 2000);
+    }
     return;
   }
 
-  // If it's Dropbox:
-  if (info.type === 'dropbox') {
-    const a = document.createElement('a');
-    a.href = info.url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // 2. Google Drive / Dropbox
+  if (info.type === 'google-drive-file' || info.type === 'dropbox') {
+    if (isMobile) {
+      window.location.assign(info.url);
+    } else {
+      const a = document.createElement('a');
+      a.href = info.url;
+      a.style.display = 'none';
+      if (suggestedFilename) {
+        a.setAttribute('download', suggestedFilename);
+      }
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 2000);
+    }
     return;
   }
 
-  // For Firebase Storage or direct media URLs:
+  // Se for YouTube / Vimeo
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(info.url)) {
+    window.open(info.url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // 3. Outros arquivos diretos (Blob fetch se suportado, senão navegação direta)
   try {
     const response = await fetch(info.url);
     if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
 
-    // If server returned HTML, do NOT download it as a file (it's likely an error page or viewer)
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
-      throw new Error('Response is HTML, opening as link');
+      throw new Error('Response is HTML');
     }
 
     const blob = await response.blob();
     const blobUrl = window.URL.createObjectURL(blob);
 
-    let filename = 'download';
-    try {
-      const urlObj = new URL(info.url);
-      const parts = urlObj.pathname.split('/');
-      const lastPart = parts[parts.length - 1];
-      if (lastPart) {
-        filename = decodeURIComponent(lastPart).split('?')[0];
-      }
-    } catch {}
+    let filename = suggestedFilename || 'download';
+    if (!suggestedFilename) {
+      try {
+        const urlObj = new URL(info.url);
+        const parts = urlObj.pathname.split('/');
+        const lastPart = parts[parts.length - 1];
+        if (lastPart) {
+          filename = decodeURIComponent(lastPart).split('?')[0];
+        }
+      } catch {}
+    }
 
     const a = document.createElement('a');
     a.style.display = 'none';
@@ -142,17 +199,20 @@ export async function triggerDownload(rawUrl: string): Promise<void> {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    window.URL.revokeObjectURL(blobUrl);
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
   } catch {
-    // Safe Fallback: Open in a new tab WITHOUT setting a.download = 'download'.
-    // If it's a file, the browser will download it using the server's filename.
-    // If it's a webpage, it will display the webpage instead of saving view.htm!
-    const a = document.createElement('a');
-    a.href = info.url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (isMobile) {
+      window.location.assign(info.url);
+    } else {
+      const a = document.createElement('a');
+      a.href = info.url;
+      a.style.display = 'none';
+      if (suggestedFilename) a.setAttribute('download', suggestedFilename);
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 2000);
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Project, Evaluation, Client } from "../types";
 import { getProjects, getEvaluations, updateProject, addNotification, getClients } from "../utils/storage";
@@ -453,9 +453,10 @@ export default function ProjectDetail() {
     }
     setIsDownloading(true);
     try {
-      await triggerDownload(url);
+      const cleanTitle = (project?.title || 'projeto').replace(/[/\\?%*:|"<>]/g, '_');
+      await triggerDownload(url, `${cleanTitle}.mp4`);
       // Brief feedback delay for smooth UX
-      await new Promise(res => setTimeout(res, 800));
+      await new Promise(res => setTimeout(res, 1200));
     } catch (err) {
       console.warn("Aviso ao processar download:", err);
     } finally {
@@ -730,10 +731,10 @@ export default function ProjectDetail() {
                     {/* Texto Download Liberado / Solicitar Download */}
                     <div className="flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist">
                       <span className="font-urbanist font-bold text-[13px] tracking-wide">
-                        {isDirectUnlocked ? "Download Liberado" : "Solicitar Download"}
+                        {isDirectUnlocked ? (isDownloading ? "Iniciando Download..." : "Download Liberado") : "Solicitar Download"}
                       </span>
                       <span className={`font-urbanist font-light text-[10px] ${isDirectUnlocked ? 'text-white/95' : 'text-neutral-300'}`}>
-                        {isDirectUnlocked ? "Clique aqui para iniciar o download" : "Cole o código para liberar"}
+                        {isDirectUnlocked ? (isDownloading ? "Seu arquivo está sendo baixado" : "Clique aqui para iniciar o download") : "Cole o código para liberar"}
                       </span>
                     </div>
                   </button>
@@ -1120,10 +1121,10 @@ export default function ProjectDetail() {
                           className="flex flex-col items-start text-left w-full overflow-hidden"
                         >
                           <span className="font-urbanist font-bold text-[14.5px] sm:text-[15.5px] tracking-tight text-white leading-tight truncate w-full">
-                            Download Liberado
+                            {isDownloading ? "Iniciando Download..." : "Download Liberado"}
                           </span>
                           <span className="font-urbanist font-light text-[10.5px] sm:text-[11.5px] text-white/95 mt-0.5 truncate w-full">
-                            Clique aqui para iniciar o download
+                            {isDownloading ? "Seu arquivo está sendo baixado" : "Clique aqui para iniciar o download"}
                           </span>
                         </motion.div>
                       ) : (

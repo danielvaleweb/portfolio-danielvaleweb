@@ -1,10 +1,10 @@
 export default async function handler(req, res) {
-  const { id } = req.query;
+  const { id, u } = req.query;
   const projectId = id ? String(id).trim() : '';
 
-  let targetUrl = 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=1200&h=630';
+  let targetUrl = u ? String(u).trim() : 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=1200&h=630';
 
-  if (projectId) {
+  if (!u && projectId) {
     try {
       const firestoreUrl = `https://firestore.googleapis.com/v1/projects/danielvalevm/databases/(default)/documents/projects/${projectId}`;
       const response = await fetch(firestoreUrl);
@@ -30,21 +30,21 @@ export default async function handler(req, res) {
       const buffer = Buffer.from(match[2], 'base64');
       res.setHeader('Content-Type', mime);
       res.setHeader('Content-Length', buffer.length);
-      res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
       return res.status(200).send(buffer);
     }
   }
 
-  // Otimização para WhatsApp / Redes Sociais (< 300KB, formato JPEG 1200x630 proporção ideal 1.91:1)
+  // Otimização para WhatsApp / Redes Sociais (< 100KB, formato JPEG 1200x630 proporção ideal 1.91:1)
   try {
-    const optimizedUrl = `https://wsrv.nl/?url=${encodeURIComponent(targetUrl)}&w=1200&h=630&fit=cover&output=jpg&q=80`;
+    const optimizedUrl = `https://wsrv.nl/capa.jpg?url=${encodeURIComponent(targetUrl)}&w=1200&h=630&fit=cover&output=jpg&q=82`;
     const imageRes = await fetch(optimizedUrl);
     if (imageRes.ok) {
       const arrayBuffer = await imageRes.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Content-Length', buffer.length);
-      res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
       return res.status(200).send(buffer);
     }
   } catch (err) {

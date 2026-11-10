@@ -24,7 +24,9 @@ import {
   CreditCard, 
   AlertCircle,
   Eye,
-  RefreshCw
+  RefreshCw,
+  BarChart3,
+  Receipt
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -556,7 +558,7 @@ export const FinancialTab: React.FC<FinancialTabProps> = ({ lang = 'pt' }) => {
       <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-200 dark:border-[#222] shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BarChart size={18} className="text-gray-400" />
+            <BarChart3 size={18} className="text-gray-400" />
             <h3 className="text-sm font-bold text-gray-900 dark:text-white">Análise Gráfica (Videomaker Analytics)</h3>
           </div>
           <button

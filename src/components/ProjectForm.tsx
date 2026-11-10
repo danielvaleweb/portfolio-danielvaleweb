@@ -2,7 +2,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
-import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff, DollarSign } from 'lucide-react';
+import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff, DollarSign, Cloud, HardDrive, FileVideo } from 'lucide-react';
 import { getClients, updateProject, getProjectFinancialTransaction } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
@@ -100,6 +100,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   );
 
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
+  const [showExternalLink, setShowExternalLink] = useState(false);
 
   useEffect(() => {
     const updateClients = () => {
@@ -344,14 +345,26 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     setUploading(fieldName);
     setUploadProgress(0);
 
-    const storageRef = ref(storage, `projects/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const folder = fieldName === 'downloadUrl' ? 'downloads' : 'projects';
+    const storageRef = ref(storage, `${folder}/${Date.now()}_${cleanFileName}`);
+
+    const metadata = {
+      contentType: file.type || (fieldName === 'downloadUrl' ? 'video/mp4' : 'application/octet-stream'),
+      contentDisposition: `attachment; filename="${cleanFileName}"`,
+      customMetadata: {
+        originalName: file.name,
+        uploadedAt: new Date().toISOString()
+      }
+    };
+
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
     uploadTask.on(
       "state_changed",
       (snapshot) => {
         const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
+        setUploadProgress(Math.round(progress));
       },
       (error) => {
         console.error("Upload failed", error);
@@ -360,7 +373,12 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          setFormData((prev) => ({ ...prev, [fieldName]: downloadURL }));
+          let finalUrl = downloadURL;
+          if (fieldName === 'downloadUrl') {
+            const sep = downloadURL.includes('?') ? '&' : '?';
+            finalUrl = `${downloadURL}${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanFileName)}"`;
+          }
+          setFormData((prev) => ({ ...prev, [fieldName]: finalUrl }));
           setUploading(null);
         });
       }
@@ -805,62 +823,188 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
              </div>
              
              {formData.allowDownload && (
-               <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300 pt-2 border-t border-gray-300 dark:border-[#222]">
-                 <div className="flex flex-col gap-2">
-                   <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center gap-2">
-                     <Upload size={14} />
-                     {t[lang].fileUrl}
-                   </label>
-                   <div className="flex gap-2">
-                     <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => handleFileUpload(e, 'downloadUrl')} />
-                     <input 
-                       type="url" 
-                       name="downloadUrl"
-                       value={formData.downloadUrl || ''} 
-                       onChange={handleChange}
-                       className="flex-1 bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors"
-                       placeholder="https://drive.google.com/..."
-                     />
-                     <button 
-                       type="button" 
-                       onClick={() => fileInputRef.current?.click()}
-                       disabled={uploading === 'downloadUrl'}
-                       className="bg-gray-200 dark:bg-[#222] hover:bg-gray-300 dark:hover:bg-[#333] text-gray-900 dark:text-white px-5 rounded-xl font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
-                     >
-                       {uploading === 'downloadUrl' ? <><Loader size={16} className="animate-spin" /> {Math.round(uploadProgress)}%</> : <><Upload size={16} /> {t[lang].upload || 'Upload'}</>}
-                     </button>
-                   </div>
-                   {formData.downloadUrl && (() => {
-                     const info = parseDownloadUrl(formData.downloadUrl);
-                     if (info.type === 'google-drive-file') {
-                       return (
-                         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1">
-                           <CheckCircle2 size={13} />
-                           Link do Google Drive detectado (será baixado diretamente sem abrir view.htm).
-                         </div>
-                       );
-                     }
-                     if (info.type === 'google-drive-folder') {
-                       return (
-                         <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium pt-1">
-                           <CheckCircle2 size={13} />
-                           Pasta do Google Drive detectada (o cliente será direcionado à pasta para baixar os arquivos).
-                         </div>
-                       );
-                     }
-                     if (info.type === 'dropbox') {
-                       return (
-                         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1">
-                           <CheckCircle2 size={13} />
-                           Link do Dropbox detectado (configurado para download direto automático).
-                         </div>
-                       );
-                     }
-                     return null;
-                   })()}
-                 </div>
-                 
-                 {project?.downloadCode && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300 pt-2 border-t border-gray-300 dark:border-[#222]">
+                  {(() => {
+                    const parsed = formData.downloadUrl ? parseDownloadUrl(formData.downloadUrl) : null;
+                    const isFirebase = parsed?.type === 'firebase';
+                    const isUploading = uploading === 'downloadUrl';
+                    const isExternal = parsed && parsed.type !== 'firebase';
+
+                    return (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[13px] font-bold text-gray-700 dark:text-[#aaa] uppercase tracking-wider flex items-center gap-2">
+                          <Cloud size={15} className="text-emerald-500" />
+                          Arquivo para Download (Alta Resolução)
+                        </label>
+                        {isFirebase && (
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle2 size={11} /> Firebase Storage Ativo
+                          </span>
+                        )}
+                      </div>
+
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        accept="video/*,.zip,.rar"
+                        className="hidden" 
+                        onChange={(e) => handleFileUpload(e, 'downloadUrl')} 
+                      />
+
+                      {/* 1. ESTADO: ENVIANDO ARQUIVO */}
+                      {isUploading && (
+                        <div className="p-4 rounded-2xl border border-blue-500/40 bg-blue-50/60 dark:bg-blue-950/30 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-blue-700 dark:text-blue-300">
+                            <span className="flex items-center gap-2">
+                              <Loader size={15} className="animate-spin text-blue-500" />
+                              Enviando arquivo original para o Firebase Storage...
+                            </span>
+                            <span className="font-mono text-sm">{Math.round(uploadProgress)}%</span>
+                          </div>
+                          <div className="w-full h-2.5 bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 transition-all duration-300 rounded-full" 
+                              style={{ width: `${uploadProgress}%` }} 
+                            />
+                          </div>
+                          <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80">
+                            O arquivo está sendo salvo diretamente na nuvem com metadados para download instantâneo no celular e PC.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 2. ESTADO: ARQUIVO FIREBASE JÁ CADASTRADO */}
+                      {!isUploading && isFirebase && (
+                        <div className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-between gap-3 shadow-xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                              <FileVideo size={22} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                <CheckCircle2 size={13} className="text-emerald-500" />
+                                <span>Arquivo Hospedado no Firebase</span>
+                              </div>
+                              <p className="text-xs text-gray-600 dark:text-neutral-300 truncate max-w-md font-mono mt-0.5">
+                                {parsed?.fileName || 'producao-original.mp4'}
+                              </p>
+                              <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/70 mt-0.5">
+                                Download direto e automático liberado para clientes no celular e PC.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-neutral-200 bg-white dark:bg-neutral-800 hover:bg-gray-100 dark:hover:bg-neutral-700 border border-gray-300 dark:border-neutral-700 rounded-xl transition-colors cursor-pointer shadow-xs"
+                            >
+                              Substituir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, downloadUrl: '' }))}
+                              className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer"
+                              title="Remover arquivo"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. ESTADO: SEM ARQUIVO DO FIREBASE (DROPZONE DE UPLOAD PRINCIPAL) */}
+                      {!isUploading && !isFirebase && (
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="border-2 border-dashed border-gray-300 dark:border-neutral-700 hover:border-emerald-500 dark:hover:border-emerald-500 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-gray-50/70 dark:bg-neutral-900/40 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10 transition-all group shadow-xs"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-neutral-800 group-hover:bg-emerald-500/10 text-gray-500 dark:text-neutral-400 group-hover:text-emerald-500 flex items-center justify-center mb-2.5 transition-colors">
+                            <Upload size={22} />
+                          </div>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">
+                            Enviar arquivo original para o Firebase
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-neutral-400 max-w-sm mb-3">
+                            Clique aqui para fazer upload do vídeo em alta resolução (.MP4, .MOV, .ZIP). O download será 100% direto sem intermediários.
+                          </p>
+                          <span className="px-4 py-1.5 bg-gray-900 text-white dark:bg-white dark:text-black rounded-xl text-xs font-bold shadow-xs group-hover:scale-105 transition-transform flex items-center gap-1.5">
+                            <Cloud size={14} /> Selecionar Arquivo
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 4. SELEÇÃO SECUNDÁRIA: LINK EXTERNO (GOOGLE DRIVE / DROPBOX) */}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowExternalLink(!showExternalLink)}
+                          className="text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-neutral-400 dark:hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <HardDrive size={13} />
+                          <span>{showExternalLink || isExternal ? 'Ocultar opção de link externo' : 'Ou prefere vincular link externo do Google Drive / Dropbox?'}</span>
+                        </button>
+
+                        {(showExternalLink || isExternal) && (
+                          <div className="mt-2.5 p-3.5 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#222] rounded-xl space-y-2 animate-in fade-in duration-200">
+                            <label className="text-[11px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider block">
+                              Link Externo (Google Drive / Dropbox)
+                            </label>
+                            <div className="flex gap-2">
+                              <input 
+                                type="url" 
+                                name="downloadUrl"
+                                value={formData.downloadUrl || ''} 
+                                onChange={handleChange}
+                                className="flex-1 bg-white dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#333] text-gray-900 dark:text-white rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-emerald-500 transition-colors"
+                                placeholder="https://drive.google.com/file/d/... ou https://www.dropbox.com/..."
+                              />
+                              {formData.downloadUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData(prev => ({ ...prev, downloadUrl: '' }))}
+                                  className="px-3 py-2 text-xs font-semibold text-gray-500 hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-[#222] transition-colors"
+                                >
+                                  Limpar
+                                </button>
+                              )}
+                            </div>
+                            {isExternal && (() => {
+                              if (parsed?.type === 'google-drive-file') {
+                                return (
+                                  <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-0.5">
+                                    <CheckCircle2 size={13} />
+                                    Link do Google Drive detectado (será baixado diretamente sem abrir view.htm).
+                                  </div>
+                                );
+                              }
+                              if (parsed?.type === 'google-drive-folder') {
+                                return (
+                                  <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium pt-0.5">
+                                    <CheckCircle2 size={13} />
+                                    Pasta do Google Drive detectada (o cliente será direcionado à pasta para baixar os arquivos).
+                                  </div>
+                                );
+                              }
+                              if (parsed?.type === 'dropbox') {
+                                return (
+                                  <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-0.5">
+                                    <CheckCircle2 size={13} />
+                                    Link do Dropbox detectado (configurado para download direto automático).
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              
+              {project?.downloadCode && (
                    <div className="bg-gray-100 dark:bg-[#1a1a1a] border border-[#333] rounded-xl p-4 flex justify-between items-center mt-2">
                      <div>
                        <p className="text-[11px] text-gray-500 dark:text-[#888] font-bold uppercase mb-1">{t[lang].generatedCode}</p>
