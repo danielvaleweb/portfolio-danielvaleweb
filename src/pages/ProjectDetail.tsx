@@ -42,6 +42,7 @@ export default function ProjectDetail() {
   const [downloadCodeInput, setDownloadCodeInput] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [isDirectUnlocked, setIsDirectUnlocked] = useState(false);
   const [unlockAnimationPhase, setUnlockAnimationPhase] = useState<'idle' | 'unlatch' | 'slide' | 'unlocked'>('idle');
@@ -452,15 +453,19 @@ export default function ProjectDetail() {
       return;
     }
     setIsDownloading(true);
+    setDownloadPercent(0);
     try {
       const cleanTitle = (project?.title || 'projeto').replace(/[/\\?%*:|"<>]/g, '_');
-      await triggerDownload(url, `${cleanTitle}.mp4`);
-      // Brief feedback delay for smooth UX
-      await new Promise(res => setTimeout(res, 1200));
+      await triggerDownload(url, `${cleanTitle}.mp4`, (percent) => {
+        setDownloadPercent(percent);
+      });
+      // Breve delay para feedback visual suave após conclusão
+      await new Promise(res => setTimeout(res, 800));
     } catch (err) {
       console.warn("Aviso ao processar download:", err);
     } finally {
       setIsDownloading(false);
+      setDownloadPercent(null);
       setShowDownloadModal(false);
       setDownloadCodeInput('');
     }
@@ -731,10 +736,10 @@ export default function ProjectDetail() {
                     {/* Texto Download Liberado / Solicitar Download */}
                     <div className="flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist">
                       <span className="font-urbanist font-bold text-[13px] tracking-wide">
-                        {isDirectUnlocked ? (isDownloading ? "Iniciando Download..." : "Download Liberado") : "Solicitar Download"}
+                        {isDirectUnlocked ? (isDownloading ? (downloadPercent !== null ? `Baixando: ${downloadPercent}%` : "Iniciando Download...") : "Download Liberado") : "Solicitar Download"}
                       </span>
                       <span className={`font-urbanist font-light text-[10px] ${isDirectUnlocked ? 'text-white/95' : 'text-neutral-300'}`}>
-                        {isDirectUnlocked ? (isDownloading ? "Seu arquivo está sendo baixado" : "Clique aqui para iniciar o download") : "Cole o código para liberar"}
+                        {isDirectUnlocked ? (isDownloading ? (downloadPercent !== null ? "Transferindo arquivo original..." : "Seu arquivo está sendo baixado") : "Clique aqui para iniciar o download") : "Cole o código para liberar"}
                       </span>
                     </div>
                   </button>
@@ -1121,10 +1126,10 @@ export default function ProjectDetail() {
                           className="flex flex-col items-start text-left w-full overflow-hidden"
                         >
                           <span className="font-urbanist font-bold text-[14.5px] sm:text-[15.5px] tracking-tight text-white leading-tight truncate w-full">
-                            {isDownloading ? "Iniciando Download..." : "Download Liberado"}
+                            {isDownloading ? (downloadPercent !== null ? `Baixando ${downloadPercent}%...` : "Iniciando Download...") : "Download Liberado"}
                           </span>
                           <span className="font-urbanist font-light text-[10.5px] sm:text-[11.5px] text-white/95 mt-0.5 truncate w-full">
-                            {isDownloading ? "Seu arquivo está sendo baixado" : "Clique aqui para iniciar o download"}
+                            {isDownloading ? (downloadPercent !== null ? "Transferindo direto para seu celular..." : "Seu arquivo está sendo baixado") : "Clique aqui para iniciar o download"}
                           </span>
                         </motion.div>
                       ) : (

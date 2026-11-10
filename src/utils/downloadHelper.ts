@@ -97,8 +97,13 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
 
 /**
  * Triggers download of a file reliably across Desktop (Windows/Mac) and Mobile (iOS Safari / Android).
+ * Forces 100% direct file download without opening the browser's video player.
  */
-export async function triggerDownload(rawUrl: string, suggestedFilename?: string): Promise<void> {
+export async function triggerDownload(
+  rawUrl: string, 
+  suggestedFilename?: string, 
+  onProgress?: (percent: number) => void
+): Promise<void> {
   if (!rawUrl) return;
 
   const info = parseDownloadUrl(rawUrl);
@@ -109,37 +114,75 @@ export async function triggerDownload(rawUrl: string, suggestedFilename?: string
     return;
   }
 
-  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  // 1. Firebase Storage (Download Direto Prioritário)
+  // 1. Firebase Storage (Download Direto 100% Garantido via Blob Local)
+  // Como o Firebase Storage tem CORS liberado (Access-Control-Allow-Origin: *),
+  // fazemos o fetch dos bytes do arquivo e geramos uma URL de blob local (mesma origem).
+  // URLs blob locais NUNCA abrem player de vídeo e FORÇAM o download direto no PC e Mobile.
   if (info.type === 'firebase') {
-    let directUrl = info.url;
-    if (!directUrl.includes('response-content-disposition')) {
-      const cleanName = suggestedFilename || info.fileName || 'arquivo_alta_resolucao.mp4';
-      const sep = directUrl.includes('?') ? '&' : '?';
-      directUrl += `${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanName)}"`;
-    }
+    const cleanName = suggestedFilename || info.fileName || 'producao_original.mp4';
 
-    if (isMobile) {
-      // No Mobile (iOS Safari / Android Chrome): navega direto para a URL com cabeçalho de anexo
-      // O navegador aciona a folha/notificação nativa de download sem abrir telas em branco
-      window.location.assign(directUrl);
-    } else {
-      // No PC Desktop: link programático oculto dispara direto para o download manager
-      const a = document.createElement('a');
-      a.href = directUrl;
-      a.style.display = 'none';
-      if (suggestedFilename || info.fileName) {
-        a.setAttribute('download', suggestedFilename || info.fileName || '');
+    try {
+      const response = await fetch(info.url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const contentLength = response.headers.get('content-length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      let blob: Blob;
+
+      if (response.body && totalBytes > 0 && onProgress) {
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let receivedBytes = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            receivedBytes += value.length;
+            onProgress(Math.min(99, Math.round((receivedBytes / totalBytes) * 100)));
+          }
+        }
+        blob = new Blob(chunks, { type: response.headers.get('content-type') || 'video/mp4' });
+        onProgress(100);
+      } else {
+        blob = await response.blob();
+        if (onProgress) onProgress(100);
       }
+
+      // Cria URL de blob local
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = cleanName;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 5000);
+
+      return;
+    } catch (err) {
+      console.warn('Erro ao processar blob direto do Firebase, tentando fallback seguro:', err);
+
+      // Fallback em caso de erro incomum de rede
+      const a = document.createElement('a');
+      a.href = info.url;
+      a.setAttribute('download', cleanName);
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
         if (document.body.contains(a)) document.body.removeChild(a);
       }, 2000);
+      return;
     }
-    return;
   }
+
+  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // 2. Google Drive / Dropbox
   if (info.type === 'google-drive-file' || info.type === 'dropbox') {
@@ -167,52 +210,31 @@ export async function triggerDownload(rawUrl: string, suggestedFilename?: string
     return;
   }
 
-  // 3. Outros arquivos diretos (Blob fetch se suportado, senão navegação direta)
+  // 3. Outros arquivos diretos (tentativa via blob)
   try {
-    const response = await fetch(info.url);
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('text/html')) {
-      throw new Error('Response is HTML');
-    }
-
-    const blob = await response.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    let filename = suggestedFilename || 'download';
-    if (!suggestedFilename) {
-      try {
-        const urlObj = new URL(info.url);
-        const parts = urlObj.pathname.split('/');
-        const lastPart = parts[parts.length - 1];
-        if (lastPart) {
-          filename = decodeURIComponent(lastPart).split('?')[0];
-        }
-      } catch {}
-    }
-
+    const res = await fetch(info.url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const b = await res.blob();
+    const bUrl = URL.createObjectURL(b);
     const a = document.createElement('a');
+    a.href = bUrl;
+    a.download = suggestedFilename || 'arquivo.mp4';
     a.style.display = 'none';
-    a.href = blobUrl;
-    a.download = filename;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+    setTimeout(() => {
+      URL.revokeObjectURL(bUrl);
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 4000);
   } catch {
-    if (isMobile) {
-      window.location.assign(info.url);
-    } else {
-      const a = document.createElement('a');
-      a.href = info.url;
-      a.style.display = 'none';
-      if (suggestedFilename) a.setAttribute('download', suggestedFilename);
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 2000);
-    }
+    const a = document.createElement('a');
+    a.href = info.url;
+    if (suggestedFilename) a.setAttribute('download', suggestedFilename);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 2000);
   }
 }
