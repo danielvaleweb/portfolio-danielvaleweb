@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, ArrowLeft, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram, Eye, EyeOff, Send, DollarSign } from 'lucide-react';
+import { Search, Bell, HelpCircle, Settings, Star, X, Briefcase, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ArrowUp, ArrowLeft, MessageSquare, LayoutGrid, Folder, FileText, Cloud, MessageCircle, User, Copy, Mail, Users, Calendar, Info, Globe, Moon, Sun, BookOpen, Headphones, ChevronDown, Check, ChevronUp, LogOut, Link, Trash2, AlertCircle, Upload, Camera, Building2, Image as ImageIcon, Pencil, Phone, Instagram, Eye, EyeOff, Send, DollarSign, Trophy } from 'lucide-react';
 import { Project, Client, Note, Notification } from '../types';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, auth } from "../firebase";
@@ -27,6 +27,7 @@ import { LearnTab } from '../components/admin/LearnTab';
 import { HelpCenterTab } from '../components/admin/HelpCenterTab';
 import { SupportTab } from '../components/admin/SupportTab';
 import { FinancialTab } from '../components/admin/FinancialTab';
+import { RankingTab } from '../components/admin/RankingTab';
 
 function useOnClickOutside(ref: any, handler: () => void) {
   useEffect(() => {
@@ -89,6 +90,7 @@ const translations = {
     listView: 'List View',
     manageClients: 'Manage Clients',
     manageClientsDesc: 'Manage your portfolio clients here.',
+    ranking: 'Ranking',
     backToSite: 'Back to site',
     logout: 'Logout'
   },
@@ -106,6 +108,7 @@ const translations = {
     noProjects: 'Nenhum projeto disponível.',
     loadMore: 'Carregar Mais',
     clients: 'Clientes',
+    ranking: 'Ranking',
     financial: 'Financeiro',
     language: 'Inglês',
     ptLanguage: 'Português (Brasil)',
@@ -141,7 +144,7 @@ const translations = {
 };
 
 const iconMap: Record<string, any> = {
-  LayoutGrid, Folder, FileText, Cloud, MessageCircle, Mail, Users, Calendar, Info, Briefcase, MessageSquare, Settings, Globe, Moon, Sun, BookOpen, HelpCircle, Headphones, DollarSign
+  LayoutGrid, Folder, FileText, Cloud, MessageCircle, Mail, Users, Calendar, Info, Briefcase, MessageSquare, Settings, Globe, Moon, Sun, BookOpen, HelpCircle, Headphones, DollarSign, Trophy
 };
 
 const NavItem = ({ icon: Icon, label, active = false, disabled = false, onClick, collapsed = false, draggable, onDragStart, onDragOver, onDrop }: { icon: any, label: string, active?: boolean, disabled?: boolean, onClick?: () => void, collapsed?: boolean, draggable?: boolean, onDragStart?: any, onDragOver?: any, onDrop?: any, key?: React.Key }) => (
@@ -488,7 +491,15 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
 
         {/* Labels/Tags Row */}
         <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#1e293b]/60 dark:text-[#60a5fa] dark:border-[#334155] text-[9.5px] font-semibold transition-colors">
+          <span className={`px-2 py-0.5 rounded-full border text-[9.5px] font-semibold transition-colors ${
+            (project.category || '').toLowerCase().includes('foto') || project.isPhotoGallery
+              ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/40'
+              : (project.category || '').toLowerCase().includes('publi')
+              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40'
+              : (project.category || '').toLowerCase().includes('event')
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40'
+              : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-[#1e293b]/60 dark:text-[#60a5fa] dark:border-[#334155]'
+          }`}>
             {project.category || 'Categoria'}
           </span>
           {typeof project.price === 'number' && project.price > 0 && (
@@ -710,12 +721,13 @@ export default function Admin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [projectsTreeOpen, setProjectsTreeOpen] = useState(true);
   const [expandedCategory, setExpandedCategory] = useState<Record<string, boolean>>({
-    'Imobiliário': true,
-    'Publicidade': true,
-    'Eventos': true,
-    'Institucional': true,
+    'Imobiliário': false,
+    'Publicidade': false,
+    'Eventos': false,
+    'Institucional': false,
+    'Fotos': false,
   });
-  const [projectCategoryFilter, setProjectCategoryFilter] = useState<'Todas' | 'Imobiliário' | 'Publicitário' | 'Eventos' | 'Institucional'>('Todas');
+  const [projectCategoryFilter, setProjectCategoryFilter] = useState<'Todas' | 'Imobiliário' | 'Publicitário' | 'Eventos' | 'Institucional' | 'Fotos'>('Todas');
   const [newProjectCategory, setNewProjectCategory] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -885,6 +897,7 @@ export default function Admin() {
     { id: 'dashboard', iconName: 'LayoutGrid', labelKey: 'dashboard', disabled: false, section: 'main' },
     { id: 'projects', iconName: 'Folder', labelKey: 'projects', disabled: false, section: 'main' },
     { id: 'clients', iconName: 'Users', labelKey: 'clients', disabled: false, section: 'main' },
+    { id: 'ranking', iconName: 'Trophy', labelKey: 'ranking', disabled: false, section: 'main' },
     { id: 'financial', iconName: 'DollarSign', labelKey: 'financial', disabled: false, section: 'main' },
     { id: 'notes', iconName: 'FileText', labelKey: 'notes', disabled: false, section: 'main' },
     { id: 'files', iconName: 'Cloud', labelKey: 'files', disabled: false, section: 'main' },
@@ -932,6 +945,7 @@ export default function Admin() {
         const ids: string[] = JSON.parse(savedVisible);
         const set = new Set(ids);
         set.add('financial');
+        set.add('ranking');
         return set;
       }
     } catch (e) {
@@ -1015,8 +1029,9 @@ export default function Admin() {
             amount: data.price,
             type: 'income',
             category: (data.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
-                       data.category === 'Publicidade' ? 'Comercial / Publicitário' :
+                       data.category === 'Publicidade' || data.category === 'Publicitário' ? 'Comercial / Publicitário' :
                        data.category === 'Eventos' ? 'Cobertura de Evento' :
+                       data.category === 'Fotos' ? 'Ensaio Fotográfico / Fotos' :
                        'Produção Audiovisual'),
             date: new Date().toISOString().split('T')[0],
             status: paymentStatus,
@@ -1048,8 +1063,9 @@ export default function Admin() {
           amount: data.price,
           type: 'income',
           category: (createdProject.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
-                     createdProject.category === 'Publicidade' ? 'Comercial / Publicitário' :
+                     createdProject.category === 'Publicidade' || createdProject.category === 'Publicitário' ? 'Comercial / Publicitário' :
                      createdProject.category === 'Eventos' ? 'Cobertura de Evento' :
+                     createdProject.category === 'Fotos' ? 'Ensaio Fotográfico / Fotos' :
                      'Produção Audiovisual'),
           date: new Date().toISOString().split('T')[0],
           status: paymentStatus,
@@ -1062,17 +1078,24 @@ export default function Admin() {
         setCopyToast(`🎉 Projeto criado e ganho de R$ ${data.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} lançado no Financeiro!`);
         setTimeout(() => setCopyToast(null), 4000);
       } else {
-        // Pergunta imediatamente: "Quanto foi ganho por aquele projeto?"
-        setFinancialPromptProject(createdProject);
-        setPromptAmount('');
-        setPromptStatus(paymentStatus);
-        setPromptMethod('pix');
-        setPromptCategory(
-          createdProject.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
-          createdProject.category === 'Publicidade' ? 'Comercial / Publicitário' :
-          createdProject.category === 'Eventos' ? 'Cobertura de Evento' :
-          'Produção Audiovisual'
-        );
+        const isPhotoProject = createdProject.category === 'Fotos' || Boolean(createdProject.isPhotoGallery);
+        if (!isPhotoProject) {
+          // Pergunta imediatamente para vídeos: "Quanto foi ganho por aquele projeto?"
+          setFinancialPromptProject(createdProject);
+          setPromptAmount('');
+          setPromptStatus(paymentStatus);
+          setPromptMethod('pix');
+          setPromptCategory(
+            createdProject.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
+            createdProject.category === 'Publicidade' || createdProject.category === 'Publicitário' ? 'Comercial / Publicitário' :
+            createdProject.category === 'Eventos' ? 'Cobertura de Evento' :
+            'Produção Audiovisual'
+          );
+        } else {
+          // Para projetos de fotos, não exige nada e conclui imediatamente
+          setCopyToast(`Projeto de fotos "${createdProject.title}" criado com sucesso!`);
+          setTimeout(() => setCopyToast(null), 3500);
+        }
       }
     }
   };
@@ -1092,8 +1115,9 @@ export default function Admin() {
     setPromptCategory(
       existingTx?.category ||
       (project.category === 'Imobiliário' ? 'Vídeo Imobiliário' :
-       project.category === 'Publicidade' ? 'Comercial / Publicitário' :
+       project.category === 'Publicidade' || project.category === 'Publicitário' ? 'Comercial / Publicitário' :
        project.category === 'Eventos' ? 'Cobertura de Evento' :
+       project.category === 'Fotos' ? 'Ensaio Fotográfico / Fotos' :
        'Produção Audiovisual')
     );
   };
@@ -1294,9 +1318,10 @@ export default function Admin() {
   };
 
   const pieData = [
-    { name: 'Imobiliário', value: realProjects.filter(p => p.category === 'Imobiliário').length, color: '#3B82F6' },
-    { name: 'Eventos', value: realProjects.filter(p => p.category === 'Eventos' || p.category === 'Institucional').length, color: '#10B981' },
-    { name: 'Publicitário', value: realProjects.filter(p => p.category === 'Publicitário' || p.category === 'Publicidade').length, color: '#F59E0B' },
+    { name: 'Imobiliário', value: realProjects.filter(p => (p.category || '').toLowerCase().includes('imobil')).length, color: '#3B82F6' },
+    { name: 'Eventos', value: realProjects.filter(p => (p.category || '').toLowerCase().includes('event') || (p.category || '').toLowerCase().includes('instituc')).length, color: '#10B981' },
+    { name: 'Publicitário', value: realProjects.filter(p => (p.category || '').toLowerCase().includes('publi')).length, color: '#F59E0B' },
+    { name: 'Fotos', value: realProjects.filter(p => p.isPhotoGallery || (p.category || '').toLowerCase().includes('foto') || (p.category || '').toLowerCase().includes('ensaio')).length, color: '#A855F7' },
   ].filter(d => d.value > 0);
 
   const [firestorePermissionError, setFirestorePermissionError] = useState(false);
@@ -1373,6 +1398,7 @@ export default function Admin() {
   const imobiliarioProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('imobil'));
   const publicidadeProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('publi'));
   const eventosProjects = realProjects.filter(p => (p.category || '').toLowerCase().includes('event') || (p.category || '').toLowerCase().includes('instituc'));
+  const fotosProjects = realProjects.filter(p => p.isPhotoGallery || (p.category || '').toLowerCase().includes('foto') || (p.category || '').toLowerCase().includes('ensaio'));
 
   // Filtered projects for the projects view (mais recentes primeiro)
   const filteredProjects = sortProjectsByRecent(realProjects).filter(p => {
@@ -1387,6 +1413,7 @@ export default function Admin() {
     if (projectCategoryFilter === 'Imobiliário') return (p.category || '').toLowerCase().includes('imobil');
     if (projectCategoryFilter === 'Publicitário' || projectCategoryFilter === 'Publicidade') return (p.category || '').toLowerCase().includes('publi');
     if (projectCategoryFilter === 'Eventos' || projectCategoryFilter === 'Institucional') return (p.category || '').toLowerCase().includes('event') || (p.category || '').toLowerCase().includes('instituc');
+    if (projectCategoryFilter === 'Fotos') return p.isPhotoGallery || (p.category || '').toLowerCase().includes('foto') || (p.category || '').toLowerCase().includes('ensaio');
     return true;
   });
 
@@ -1405,6 +1432,7 @@ export default function Admin() {
     switch (activeTab) {
       case 'dashboard': return t.dashboard;
       case 'clients': return t.manageClients;
+      case 'ranking': return lang === 'pt' ? 'Ranking de Clientes' : 'Client Rankings';
       case 'financial': return lang === 'pt' ? 'Financeiro' : 'Financial';
       case 'notes': return lang === 'pt' ? 'Bloco de Notas' : 'Notes';
       case 'files': return lang === 'pt' ? 'Gerenciador de Arquivos' : 'Files Manager';
@@ -1425,6 +1453,7 @@ export default function Admin() {
     switch (activeTab) {
       case 'dashboard': return t.overviewDesc;
       case 'clients': return t.manageClientsDesc;
+      case 'ranking': return lang === 'pt' ? 'Métricas de fidelidade, top investidores, volume de produções e avaliações.' : 'Client fidelity metrics, top investors, production volume, and reviews.';
       case 'financial': return lang === 'pt' ? 'Módulo financeiro, controle de faturamento, orçamentos e recebíveis.' : 'Financial management, invoicing, budgets, and receivables.';
       case 'notes': return lang === 'pt' ? 'Crie notas rápidas, roteiros, checklists e briefings de projetos.' : 'Create quick notes, scripts, checklists, and project briefs.';
       case 'files': return lang === 'pt' ? 'Armazene e gerencie mídias, contratos, arquivos RAW e exportações.' : 'Store and manage media, contracts, RAW files, and exports.';
@@ -1552,8 +1581,25 @@ export default function Admin() {
                           setActiveTab(item.id);
                           setIsCreating(false);
                           setEditingProject(null);
-                          if (item.id === 'projects') setCurrentPage(1);
-                          setIsMobileSidebarOpen(false);
+                          if (item.id === 'projects') {
+                            setCurrentPage(1);
+                            // Ao clicar em Projetos, abre a árvore e garante que as subcategorias comecem recolhidas
+                            setProjectsTreeOpen(prev => {
+                              const nextState = activeTab === 'projects' ? !prev : true;
+                              if (nextState) {
+                                setExpandedCategory({
+                                  'Imobiliário': false,
+                                  'Publicidade': false,
+                                  'Eventos': false,
+                                  'Institucional': false,
+                                  'Fotos': false,
+                                });
+                              }
+                              return nextState;
+                            });
+                          } else {
+                            setIsMobileSidebarOpen(false);
+                          }
                         }}
                         collapsed={isSidebarCollapsed}
                         draggable={!isSidebarCollapsed}
@@ -1565,7 +1611,19 @@ export default function Admin() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setProjectsTreeOpen(!projectsTreeOpen);
+                            setProjectsTreeOpen(prev => {
+                              const nextState = !prev;
+                              if (nextState) {
+                                setExpandedCategory({
+                                  'Imobiliário': false,
+                                  'Publicidade': false,
+                                  'Eventos': false,
+                                  'Institucional': false,
+                                  'Fotos': false,
+                                });
+                              }
+                              return nextState;
+                            });
                           }}
                           className="absolute right-2 p-1 text-gray-400 hover:text-black dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-[#222] transition-colors"
                           title="Recolher/Expandir coleções"
@@ -1756,6 +1814,68 @@ export default function Admin() {
                                 </button>
                               ))}
                               {eventosProjects.length === 0 && (
+                                <span className="text-[10px] text-gray-400 italic px-2 py-0.5 block">Nenhum projeto</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 4. FOTOS */}
+                        <div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#181818] transition-colors group">
+                            <button
+                              onClick={() => {
+                                toggleCategoryExpand('Fotos');
+                                setProjectCategoryFilter('Fotos');
+                                setActiveTab('projects');
+                                setIsCreating(false);
+                                setEditingProject(null);
+                                setIsMobileSidebarOpen(false);
+                              }}
+                              className="flex items-center gap-1.5 flex-1 text-left"
+                            >
+                              <ChevronRight size={12} className={`transition-transform text-gray-400 ${expandedCategory['Fotos'] ? 'rotate-90' : ''}`} />
+                              <span className="tracking-wide uppercase text-[11px] font-bold text-purple-600 dark:text-purple-400">Fotos</span>
+                              <span className="text-[10px] text-gray-400 font-mono">({fotosProjects.length})</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTab('projects');
+                                setNewProjectCategory('Fotos');
+                                setEditingProject(null);
+                                setIsCreating(true);
+                                setIsMobileSidebarOpen(false);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded transition-opacity"
+                              title="Novo projeto de Fotos"
+                            >
+                              <Plus size={13} />
+                            </button>
+                          </div>
+
+                          {expandedCategory['Fotos'] && (
+                            <div className="ml-3 pl-2 border-l border-gray-200/60 dark:border-[#222] space-y-0.5 mt-0.5">
+                              {fotosProjects.map(proj => (
+                                <button
+                                  key={proj.id}
+                                  onClick={() => {
+                                    setActiveTab('projects');
+                                    setEditingProject(proj);
+                                    setIsCreating(false);
+                                    setIsMobileSidebarOpen(false);
+                                  }}
+                                  className={`w-full text-left px-2 py-1 rounded text-[11px] truncate transition-colors flex items-center gap-1.5 ${editingProject?.id === proj.id
+                                      ? 'bg-purple-500/15 text-purple-500 font-bold'
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#161616]'
+                                    }`}
+                                  title={`PROJETOS > FOTOS > ${proj.title}`}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0" />
+                                  <span className="truncate">{proj.title}</span>
+                                </button>
+                              ))}
+                              {fotosProjects.length === 0 && (
                                 <span className="text-[10px] text-gray-400 italic px-2 py-0.5 block">Nenhum projeto</span>
                               )}
                             </div>
@@ -1989,7 +2109,15 @@ export default function Admin() {
                   <div className="flex items-center gap-2 text-xs font-mono text-gray-500 uppercase tracking-wider flex-wrap">
                     <span className="font-bold text-gray-400">PROJETOS</span>
                     <span>&gt;</span>
-                    <span className="font-bold text-blue-500">{((newProjectCategory || editingProject?.category) || 'IMOBILIÁRIO').toUpperCase()}</span>
+                    <span className={`font-bold ${
+                      ((newProjectCategory || editingProject?.category) || '').toLowerCase().includes('foto')
+                        ? 'text-purple-500'
+                        : ((newProjectCategory || editingProject?.category) || '').toLowerCase().includes('publi')
+                        ? 'text-amber-500'
+                        : ((newProjectCategory || editingProject?.category) || '').toLowerCase().includes('event')
+                        ? 'text-emerald-500'
+                        : 'text-blue-500'
+                    }`}>{((newProjectCategory || editingProject?.category) || 'IMOBILIÁRIO').toUpperCase()}</span>
                     <span>&gt;</span>
                     <span className="font-bold text-black dark:text-white">{editingProject?.title?.toUpperCase() || 'NOVO PROJETO'}</span>
                   </div>
@@ -2306,6 +2434,21 @@ service cloud.firestore {
                       </div>
                     </div>
                   </div>
+                ) : activeTab === 'ranking' ? (
+                  <RankingTab 
+                    lang={lang} 
+                    onNavigateToClient={(clientId) => {
+                      const found = realClients.find(c => c.id === clientId);
+                      if (found) {
+                        setSelectedClient(found);
+                      }
+                      setActiveTab('clients');
+                    }}
+                    onNavigateToProjects={(clientName) => {
+                      if (clientName) setSearchQuery(clientName);
+                      setActiveTab('projects');
+                    }}
+                  />
                 ) : activeTab === 'financial' ? (
                   <FinancialTab lang={lang} />
                 ) : activeTab === 'notes' ? (

@@ -393,11 +393,39 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const isPhoto = formData.category === 'Fotos' || Boolean(formData.isPhotoGallery);
+
+    // Se for projeto de foto e faltar o título, define um padrão amigável sem exigir nada
+    const cleanTitle = (formData.title || '').trim() || (isPhoto ? 'Ensaio Fotográfico' : 'Novo Projeto');
+
+    // Se for projeto de foto e não tiver thumbnail definida, usa a primeira imagem da galeria
+    let finalThumbnail = formData.thumbnail?.trim() || '';
+    if (!finalThumbnail && formData.images && formData.images.length > 0) {
+      finalThumbnail = formData.images[0];
+    }
+
+    const finalData: Partial<Project> = {
+      ...formData,
+      title: cleanTitle,
+      thumbnail: finalThumbnail,
+      isPhotoGallery: isPhoto,
+      category: isPhoto ? 'Fotos' : (formData.category || 'Imobiliário'),
+      // Se não selecionou cliente, desativa o card de cliente para não exibir vazio
+      showClientInfo: formData.clientId ? Boolean(formData.showClientInfo) : false,
+      videoUrl: formData.videoUrl?.trim() || '',
+      description: formData.description?.trim() || '',
+    };
+
     if (project?.id && formData.images && formData.images.length > 0) {
       saveGalleryToIndexedDB(project.id, formData.images);
-      updateProject(project.id, { images: formData.images });
+      updateProject(project.id, { 
+        images: formData.images, 
+        isPhotoGallery: isPhoto,
+        thumbnail: finalData.thumbnail,
+        title: cleanTitle,
+      });
     }
-    onSave(formData, paymentStatus);
+    onSave(finalData, paymentStatus);
   };
 
   const handleAddTag = () => {
@@ -431,15 +459,19 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider">{t[lang].title}</label>
+            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center justify-between">
+              <span>{t[lang].title}</span>
+              {formData.category === 'Fotos' && (
+                <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium normal-case tracking-normal">(opcional para fotos)</span>
+              )}
+            </label>
             <input 
-              required
               type="text" 
               name="title"
-              value={formData.title} 
+              value={formData.title || ''} 
               onChange={handleChange}
               className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors"
-              placeholder="Project Title"
+              placeholder={formData.category === 'Fotos' ? (lang === 'pt' ? 'Ex: Ensaio Fotográfico (opcional)' : 'Photo Session Title (optional)') : 'Project Title'}
             />
           </div>
 
@@ -459,22 +491,32 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider">{t[lang].description}</label>
+            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center justify-between">
+              <span>{t[lang].description}</span>
+              {formData.category === 'Fotos' && (
+                <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium normal-case tracking-normal">(opcional)</span>
+              )}
+            </label>
             <textarea 
               name="description"
               value={formData.description || ''} 
               onChange={handleChange}
               rows={3}
               className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors custom-scrollbar"
-              placeholder={lang === 'pt' ? 'Breve sinopse do projeto...' : 'Brief synopsis of the project...'}
+              placeholder={formData.category === 'Fotos' ? (lang === 'pt' ? 'Sinopse ou observações (opcional)...' : 'Synopsis or notes (optional)...') : (lang === 'pt' ? 'Breve sinopse do projeto...' : 'Brief synopsis of the project...')}
             />
           </div>
 
           <div className="space-y-4 md:col-span-2 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#262626] rounded-2xl p-5">
             <div className="space-y-2">
-              <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center gap-2">
-                <User size={14} />
-                {t[lang].client}
+              <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <User size={14} />
+                  {t[lang].client}
+                </span>
+                {formData.category === 'Fotos' && (
+                  <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium normal-case tracking-normal">(opcional)</span>
+                )}
               </label>
               <select 
                 name="clientId"
@@ -605,9 +647,14 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           </div>
 
           <div className="space-y-2">
-            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center gap-2">
-              <Video size={14} />
-              Video URL (YouTube/Vimeo)
+            <label className="text-[13px] font-bold text-gray-500 dark:text-[#888] uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Video size={14} />
+                Video URL (YouTube/Vimeo)
+              </span>
+              {formData.category === 'Fotos' && (
+                <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium normal-case tracking-normal">(opcional para fotos)</span>
+              )}
             </label>
             <div className="flex gap-2">
               <input type="file" ref={videoInputRef} className="hidden" accept="video/*" onChange={(e) => handleFileUpload(e, 'videoUrl')} />
@@ -646,10 +693,12 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
                     <div>
                       <h4 className="text-gray-900 dark:text-white font-bold text-[15px] flex items-center gap-2">
                         <ImageIcon size={16} className="text-[#FF6321]" />
-                        Fotos do Imóvel (Galeria)
+                        {formData.category === 'Fotos' ? 'Galeria de Fotos do Projeto' : 'Fotos do Projeto / Imóvel (Galeria)'}
                       </h4>
                       <p className="text-gray-500 dark:text-[#777] text-[13px]">
-                        As fotos cadastradas aparecerão em uma galeria logo abaixo do vídeo na página do imóvel.
+                        {formData.category === 'Fotos'
+                          ? 'As fotos cadastradas serão exibidas na galeria cinematográfica com suporte a slideshow e visualização em alta resolução.'
+                          : 'As fotos cadastradas aparecerão em uma galeria logo abaixo do vídeo na página do imóvel.'}
                       </p>
                     </div>
                     <span className="text-xs font-mono font-bold px-3 py-1 bg-white dark:bg-[#202020] border border-gray-200 dark:border-[#333] rounded-full text-gray-700 dark:text-gray-300 self-start sm:self-auto">
@@ -1044,8 +1093,11 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-gray-700 dark:text-[#bbb] uppercase tracking-wider">
-                  Valor Cobrado / Ganho (R$)
+                <label className="text-[12px] font-bold text-gray-700 dark:text-[#bbb] uppercase tracking-wider flex items-center justify-between">
+                  <span>Valor Cobrado / Ganho (R$)</span>
+                  {formData.category === 'Fotos' && (
+                    <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium normal-case tracking-normal">(opcional)</span>
+                  )}
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">R$</span>

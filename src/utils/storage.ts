@@ -20,7 +20,7 @@ import {
 } from "../types";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { storage, db } from "../firebase";
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from "firebase/firestore";
 import { saveGalleryToIndexedDB, getGalleryFromIndexedDB } from "./imageStorage";
 
 const STORAGE_KEY = "daniel_vale_projects";
@@ -507,6 +507,163 @@ export function formatProjectDocId(title: string): string {
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .toUpperCase();
+}
+
+export function toProjectSlug(str?: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function parseFirestoreRestValue(val: any): any {
+  if (!val) return undefined;
+  if ('stringValue' in val) return val.stringValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('integerValue' in val) return parseInt(val.integerValue, 10);
+  if ('doubleValue' in val) return parseFloat(val.doubleValue);
+  if ('timestampValue' in val) return Date.parse(val.timestampValue);
+  if ('arrayValue' in val) {
+    return (val.arrayValue.values || []).map(parseFirestoreRestValue);
+  }
+  if ('mapValue' in val) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val.mapValue.fields || {})) {
+      res[k] = parseFirestoreRestValue(v);
+    }
+    return res;
+  }
+  return undefined;
+}
+
+function parseFirestoreRestProject(docData: any): Project {
+  const fields = docData.fields || {};
+  const data: Record<string, any> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    data[k] = parseFirestoreRestValue(v);
+  }
+  const id = docData.name ? docData.name.split('/').pop() : '';
+  return mapFirestoreProject(id, data);
+}
+
+/**
+ * Busca um projeto pelo ID, slug ou título com garantia de alta velocidade e suporte a projetos não-listados:
+ * 1. Tenta recuperar do cache local imediatamente
+ * 2. Se não encontrar (primeiro acesso via link do WhatsApp no celular), faz busca paralela REST + SDK Firestore
+ * 3. Garante que projetos com visibility === 'unlisted' sejam carregados com sucesso
+ */
+export async function fetchProjectById(id: string): Promise<Project | null> {
+  if (!id) return null;
+  const cleanId = decodeURIComponent(id).trim();
+  const deletedIds = getDeletedProjectIds();
+  if (deletedIds.includes(cleanId) || FICTITIOUS_PROJECT_IDS.has(cleanId.toLowerCase())) {
+    return null;
+  }
+
+  const cleanSlug = toProjectSlug(cleanId);
+  const cleanDocTitle = formatProjectDocId(cleanId);
+
+  const isMatchingProject = (p: Project) => {
+    if (!p) return false;
+    if (deletedIds.includes(p.id)) return false;
+    if (p.id === cleanId || p.id.toLowerCase() === cleanId.toLowerCase()) return true;
+    if (p.title) {
+      if (p.title.trim().toLowerCase() === cleanId.toLowerCase()) return true;
+      if (toProjectSlug(p.title) === cleanSlug) return true;
+      if (formatProjectDocId(p.title) === cleanDocTitle) return true;
+    }
+    return false;
+  };
+
+  // 1. Tenta localmente primeiro
+  const localList = getProjects();
+  const local = localList.find(isMatchingProject);
+  if (local) return local;
+
+  // 2. Busca direta no Firestore em alta velocidade (SDK + REST API em paralelo)
+  try {
+    const fetchDirectRest = async (): Promise<Project | null> => {
+      try {
+        const res = await fetch(`https://firestore.googleapis.com/v1/projects/danielvalevm/databases/(default)/documents/projects/${encodeURIComponent(cleanId)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.fields) {
+            return parseFirestoreRestProject(json);
+          }
+        }
+      } catch {}
+      return null;
+    };
+
+    const fetchSdk = async (): Promise<Project | null> => {
+      try {
+        const docRef = doc(db, "projects", cleanId);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          return mapFirestoreProject(snap.id, snap.data());
+        }
+      } catch {}
+      return null;
+    };
+
+    // Executa as duas buscas diretas (a que responder primeiro com sucesso ganha)
+    const directResult = await Promise.race([
+      fetchDirectRest().then(r => r ? r : new Promise<null>(() => {})),
+      fetchSdk().then(r => r ? r : new Promise<null>(() => {})),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 2500))
+    ]);
+
+    let foundProject = directResult;
+
+    // Se a busca rápida não resolveu, aguarda o término de ambas
+    if (!foundProject) {
+      const fallbackDirect = await Promise.allSettled([fetchDirectRest(), fetchSdk()]);
+      for (const res of fallbackDirect) {
+        if (res.status === 'fulfilled' && res.value) {
+          foundProject = res.value;
+          break;
+        }
+      }
+    }
+
+    // Se ainda não encontrou diretamente pelo doc ID (ex.: link com slug ou título), busca na coleção de projetos
+    if (!foundProject) {
+      try {
+        const listRes = await fetch(`https://firestore.googleapis.com/v1/projects/danielvalevm/databases/(default)/documents/projects?pageSize=100`);
+        if (listRes.ok) {
+          const listJson = await listRes.json();
+          if (Array.isArray(listJson.documents)) {
+            const allParsed = listJson.documents.map(parseFirestoreRestProject);
+            foundProject = allParsed.find(isMatchingProject) || null;
+          }
+        }
+      } catch {}
+    }
+
+    if (foundProject && !deletedIds.includes(foundProject.id)) {
+      const visibilities = getProjectVisibilities();
+      const favorites = getProjectFavorites();
+      if (visibilities[foundProject.id]) {
+        foundProject.visibility = visibilities[foundProject.id];
+      } else if (!foundProject.visibility) {
+        foundProject.visibility = 'public';
+      }
+      if (favorites[foundProject.id] !== undefined) {
+        foundProject.isFavorite = favorites[foundProject.id];
+      }
+
+      // Salva no cache local para que as próximas navegações sejam instantâneas
+      saveProjects([...localList.filter(p => p.id !== foundProject!.id), foundProject]);
+      return foundProject;
+    }
+  } catch (err) {
+    console.warn("Notice fetching project by id from Firestore:", err);
+  }
+
+  return null;
 }
 
 export function getProjectCategoryCollection(category?: string): 'projetos_imobiliario' | 'projetos_publicidade' | 'projetos_eventos' | 'projetos_institucional' {

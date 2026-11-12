@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Project, Evaluation, Client } from "../types";
-import { getProjects, getEvaluations, updateProject, addNotification, getClients } from "../utils/storage";
+import { getProjects, getEvaluations, updateProject, addNotification, getClients, fetchProjectById } from "../utils/storage";
 import { getGalleryFromIndexedDB } from "../utils/imageStorage";
 import { motion, AnimatePresence } from "motion/react";
 import CustomVideoPlayer from "../components/CustomVideoPlayer";
@@ -38,6 +38,7 @@ export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadCodeInput, setDownloadCodeInput] = useState('');
   const [downloadError, setDownloadError] = useState('');
@@ -246,68 +247,129 @@ export default function ProjectDetail() {
   const [slideshowProgress, setSlideshowProgress] = useState(0);
 
   useEffect(() => {
-    const loadProjectAndClient = () => {
+    let isCancelled = false;
+
+    const applyFoundProject = (foundProject: Project) => {
+      setProject(foundProject);
+      setIsLoading(false);
+      if (foundProject.title) {
+        document.title = `${foundProject.title} | Daniel Vale`;
+      }
+      if (foundProject.thumbnail) {
+        let ogImg = document.querySelector('meta[property="og:image"]');
+        if (!ogImg) {
+          ogImg = document.createElement('meta');
+          ogImg.setAttribute('property', 'og:image');
+          document.head.appendChild(ogImg);
+        }
+        ogImg.setAttribute('content', foundProject.thumbnail);
+      }
+
+      // Busca fotos salvas em IndexedDB caso existam mais imagens locais
+      getGalleryFromIndexedDB(foundProject.id).then((cached) => {
+        if (!isCancelled && cached && cached.length > 0) {
+          setProject(prev => {
+            if (prev && prev.id === foundProject.id) {
+              const existing = prev.images || [];
+              const merged = Array.from(new Set([...existing, ...cached]));
+              return { ...prev, images: merged };
+            }
+            return prev;
+          });
+        }
+      });
+
+      // Find evaluation linked to this project
+      const allEvals = getEvaluations();
+      const linkedEval = allEvals.find((e) => e.projectId === foundProject.id);
+      setEvaluation(linkedEval || null);
+
+      // Find client linked to this project if enabled
+      const allClients = getClients();
+      let linkedClient: Client | null = null;
+      
+      // Verifica se as informações do cliente estão ativadas para este projeto
+      const isClientInfoEnabled = foundProject.showClientInfo !== false && Boolean(foundProject.clientId);
+      
+      if (isClientInfoEnabled && foundProject.clientId) {
+        linkedClient = allClients.find((c) => c.id === foundProject.clientId) || null;
+      }
+      setClient(linkedClient);
+
+      // Find next project in the list for continuous reading/watching (apenas projetos públicos)
       const allProjects = getProjects();
-      const foundProject = allProjects.find((p) => p.id === projectId);
-
-      if (foundProject) {
-        setProject(foundProject);
-        if (foundProject.title) {
-          document.title = `${foundProject.title} | Daniel Vale`;
-        }
-        if (foundProject.thumbnail) {
-          let ogImg = document.querySelector('meta[property="og:image"]');
-          if (!ogImg) {
-            ogImg = document.createElement('meta');
-            ogImg.setAttribute('property', 'og:image');
-            document.head.appendChild(ogImg);
-          }
-          ogImg.setAttribute('content', foundProject.thumbnail);
-        }
-
-        // Busca fotos salvas em IndexedDB caso existam mais imagens locais
-        getGalleryFromIndexedDB(foundProject.id).then((cached) => {
-          if (cached && cached.length > 0) {
-            setProject(prev => {
-              if (prev && prev.id === foundProject.id) {
-                const existing = prev.images || [];
-                const merged = Array.from(new Set([...existing, ...cached]));
-                return { ...prev, images: merged };
-              }
-              return prev;
-            });
-          }
-        });
-
-        // Find evaluation linked to this project
-        const allEvals = getEvaluations();
-        const linkedEval = allEvals.find((e) => e.projectId === foundProject.id);
-        setEvaluation(linkedEval || null);
-
-        // Find client linked to this project if enabled
-        const allClients = getClients();
-        let linkedClient: Client | null = null;
-        
-        // Verifica se as informações do cliente estão ativadas para este projeto
-        const isClientInfoEnabled = foundProject.showClientInfo !== false && Boolean(foundProject.clientId);
-        
-        if (isClientInfoEnabled && foundProject.clientId) {
-          linkedClient = allClients.find((c) => c.id === foundProject.clientId) || null;
-        }
-        setClient(linkedClient);
-
-        // Find next project in the list for continuous reading/watching
-        const currentIndex = allProjects.findIndex((p) => p.id === foundProject.id);
-        const nextIndex = (currentIndex + 1) % allProjects.length;
-        if (allProjects[nextIndex] && allProjects[nextIndex].id !== foundProject.id) {
-          setNextProject(allProjects[nextIndex]);
+      const publicProjects = allProjects.filter((p) => p.visibility !== 'unlisted');
+      const currentIndex = publicProjects.findIndex((p) => p.id === foundProject.id);
+      if (currentIndex !== -1 && publicProjects.length > 1) {
+        const nextIndex = (currentIndex + 1) % publicProjects.length;
+        if (publicProjects[nextIndex] && publicProjects[nextIndex].id !== foundProject.id) {
+          setNextProject(publicProjects[nextIndex]);
         } else {
           setNextProject(null);
         }
+      } else if (publicProjects.length > 0 && foundProject.visibility === 'unlisted') {
+        setNextProject(publicProjects[0]);
       } else {
-        setProject(null);
-        setClient(null);
+        setNextProject(null);
       }
+    };
+
+    const loadProjectAndClient = async () => {
+      if (!projectId) {
+        setIsLoading(false);
+        setProject(null);
+        return;
+      }
+
+      const cleanId = decodeURIComponent(projectId).trim();
+
+      const matchProject = (p: Project) => {
+        if (!p) return false;
+        if (p.id === cleanId || p.id.toLowerCase() === cleanId.toLowerCase()) return true;
+        if (p.title) {
+          const title = p.title.trim().toLowerCase();
+          if (title === cleanId.toLowerCase()) return true;
+        }
+        return false;
+      };
+
+      // 1. Tenta carregar do cache local imediatamente (0ms)
+      const allProjects = getProjects();
+      const localFound = allProjects.find(matchProject);
+      if (localFound) {
+        applyFoundProject(localFound);
+        return;
+      }
+
+      // 2. Não encontrado localmente (primeiro acesso via link do WhatsApp no celular):
+      // Mantém estado de carregamento REC e faz busca direta ultra rápida no Firestore (REST + SDK)
+      setIsLoading(true);
+      try {
+        const remoteFound = await fetchProjectById(cleanId);
+        if (isCancelled) return;
+        if (remoteFound) {
+          applyFoundProject(remoteFound);
+          return;
+        }
+      } catch (err) {
+        console.warn("Notice checking remote project:", err);
+      }
+
+      // 3. Fallback: aguarda sincronização em segundo plano antes de concluir que não existe
+      const timer = setTimeout(() => {
+        if (!isCancelled) {
+          const recheck = getProjects().find(matchProject);
+          if (recheck) {
+            applyFoundProject(recheck);
+          } else {
+            setIsLoading(false);
+            setProject(null);
+            setClient(null);
+          }
+        }
+      }, 5000);
+
+      return () => clearTimeout(timer);
     };
 
     loadProjectAndClient();
@@ -323,11 +385,26 @@ export default function ProjectDetail() {
       audioPlayerRef.current = null;
     }
 
-    window.addEventListener("clients-updated", loadProjectAndClient);
-    window.addEventListener("projects-updated", loadProjectAndClient);
+    const handleProjectsUpdated = () => {
+      if (projectId) {
+        const cleanId = decodeURIComponent(projectId).trim();
+        const p = getProjects().find(proj => (
+          proj.id === cleanId ||
+          proj.id.toLowerCase() === cleanId.toLowerCase() ||
+          proj.title?.trim().toLowerCase() === cleanId.toLowerCase()
+        ));
+        if (p) {
+          applyFoundProject(p);
+        }
+      }
+    };
+
+    window.addEventListener("clients-updated", handleProjectsUpdated);
+    window.addEventListener("projects-updated", handleProjectsUpdated);
     return () => {
-      window.removeEventListener("clients-updated", loadProjectAndClient);
-      window.removeEventListener("projects-updated", loadProjectAndClient);
+      isCancelled = true;
+      window.removeEventListener("clients-updated", handleProjectsUpdated);
+      window.removeEventListener("projects-updated", handleProjectsUpdated);
     };
   }, [projectId]);
 
@@ -485,6 +562,74 @@ export default function ProjectDetail() {
       message: `"${text}"`
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex flex-col items-center justify-center p-6 text-center select-none relative overflow-hidden">
+        {/* Subtle top light leak/glow */}
+        <div className="absolute top-0 inset-x-0 h-[300px] bg-gradient-to-b from-neutral-950/[0.03] to-transparent pointer-events-none z-0" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="relative z-10 flex flex-col items-center justify-center -mt-8"
+        >
+          {/* Circular Text with REC logo in the center */}
+          <div className="relative flex items-center justify-center w-48 h-48 sm:w-56 sm:h-56">
+            {/* Texto circular giratório */}
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                <defs>
+                  <path
+                    id="loading-circle-path"
+                    d="M 100, 100 m -72, 0 a 72,72 0 1,1 144,0 a 72,72 0 1,1 -144,0"
+                  />
+                </defs>
+                <text className="text-[9.5px] font-black tracking-[0.24em] uppercase fill-neutral-800">
+                  <textPath href="#loading-circle-path" startOffset="0%">
+                    • CARREGANDO PROJETO • CARREGANDO PROJETO 
+                  </textPath>
+                </text>
+              </svg>
+            </motion.div>
+
+            {/* Badge REC no centro com efeito de gravação pulsante */}
+            <div className="relative z-10 flex flex-col items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white shadow-[0_12px_36px_rgba(0,0,0,0.08)] border border-neutral-200/80">
+              <div className="flex items-center gap-2">
+                <div className="relative flex items-center justify-center w-3 h-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#FB2C36]" />
+                  <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-[#FB2C36] animate-ping opacity-75" />
+                </div>
+                <span className="font-urbanist font-black text-base sm:text-lg text-[#FB2C36] tracking-[0.2em] -mr-1 select-none">
+                  REC
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Subtítulo suave */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.3 }}
+            className="mt-6 flex flex-col items-center gap-1"
+          >
+            <span className="font-urbanist font-bold text-sm tracking-wide text-neutral-800">
+              Carregando projeto...
+            </span>
+            <span className="text-[11px] font-medium text-neutral-400">
+              Aguarde um instante
+            </span>
+          </motion.div>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (!project) {
     return (

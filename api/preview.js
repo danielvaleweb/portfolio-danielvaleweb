@@ -66,6 +66,11 @@ export default async function handler(req, res) {
     ? `https://www.danielvale.com.br/avaliar/${projectId}`
     : `https://www.danielvale.com.br/projeto/${projectId}${queryParams}`;
 
+  const directParam = queryParams ? '&direct=1' : '?direct=1';
+  const redirectUrl = isEval === '1'
+    ? `https://www.danielvale.com.br/avaliar/${projectId}?direct=1`
+    : `https://www.danielvale.com.br/projeto/${projectId}${queryParams}${directParam}`;
+
   // URL de imagem otimizada para WhatsApp (< 100KB, JPEG 1200x630 com extensão .jpg explícita)
   let ogImageUrl = 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=1200&h=630';
 
@@ -125,11 +130,11 @@ export default async function handler(req, res) {
   <meta name="twitter:image" content="${ogImageUrl}">
 
   <!-- Redireciona humanos instantaneamente -->
-  <meta http-equiv="refresh" content="0; url=${canonicalUrl}">
+  <meta http-equiv="refresh" content="0; url=${redirectUrl}">
 </head>
 <body style="background:#000;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
   <p>Carregando projeto...</p>
-  <script>window.location.replace("${canonicalUrl}");</script>
+  <script>window.location.replace("${redirectUrl}");</script>
 </body>
 </html>`;
 
