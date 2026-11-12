@@ -473,12 +473,32 @@ export default function ProjectDetail() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const validImages = (project?.images || []).filter((img): img is string => 
+    typeof img === 'string' && 
+    img.trim().length > 0 && 
+    !img.startsWith('blob:') && 
+    (img.startsWith('http') || img.startsWith('data:image/'))
+  );
+
+  const allGalleryPhotos = validImages.length > 0 
+    ? validImages 
+    : (project?.thumbnail && (project.thumbnail.startsWith('http') || project.thumbnail.startsWith('data:image/')) ? [project.thumbnail] : []);
+
+  const isPhotoProject = Boolean(
+    project?.isPhotoGallery || 
+    (project?.category && project.category.toLowerCase().includes('foto')) || 
+    (project?.category && project.category.toLowerCase().includes('ensaio')) ||
+    (!project?.videoUrl && allGalleryPhotos.length > 0)
+  );
+
+  const currentPhoto = allGalleryPhotos[activePhotoIndex] || allGalleryPhotos[0] || project?.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800";
+
   // Slideshow autoplay effect
   useEffect(() => {
     let timer: any = null;
     let progressTimer: any = null;
 
-    if (isSlideshowActive && project?.isPhotoGallery && project?.images?.length) {
+    if (isSlideshowActive && isPhotoProject && allGalleryPhotos.length > 1) {
       const intervalTime = 4000; // 4 seconds
       const stepTime = 50; // update progress every 50ms
       let elapsed = 0;
@@ -489,7 +509,7 @@ export default function ProjectDetail() {
       }, stepTime);
 
       timer = setInterval(() => {
-        setActivePhotoIndex((prev) => (prev + 1) % (project.images?.length || 1));
+        setActivePhotoIndex((prev) => (prev + 1) % allGalleryPhotos.length);
         elapsed = 0;
         setSlideshowProgress(0);
       }, intervalTime);
@@ -501,17 +521,17 @@ export default function ProjectDetail() {
       if (timer) clearInterval(timer);
       if (progressTimer) clearInterval(progressTimer);
     };
-  }, [isSlideshowActive, project?.isPhotoGallery, project?.images?.length]);
+  }, [isSlideshowActive, isPhotoProject, allGalleryPhotos.length]);
 
   // Slideshow keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (project?.isPhotoGallery && project?.images?.length) {
+      if (isPhotoProject && allGalleryPhotos.length > 1) {
         if (e.key === "ArrowRight") {
-          setActivePhotoIndex((prev) => (prev + 1) % (project.images?.length || 1));
+          setActivePhotoIndex((prev) => (prev + 1) % allGalleryPhotos.length);
           setIsSlideshowActive(false);
         } else if (e.key === "ArrowLeft") {
-          setActivePhotoIndex((prev) => (prev - 1 + (project.images?.length || 1)) % (project.images?.length || 1));
+          setActivePhotoIndex((prev) => (prev - 1 + allGalleryPhotos.length) % allGalleryPhotos.length);
           setIsSlideshowActive(false);
         } else if (e.key === " ") {
           e.preventDefault();
@@ -521,9 +541,7 @@ export default function ProjectDetail() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [project, project?.isPhotoGallery, project?.images?.length]);
-
-
+  }, [isPhotoProject, allGalleryPhotos.length]);
 
   const handleDirectDownload = async (url: string) => {
     if (!url) {
@@ -535,7 +553,10 @@ export default function ProjectDetail() {
     setDownloadPercent(0);
     try {
       const cleanTitle = (project?.title || 'projeto').replace(/[/\\?%*:|"<>]/g, '_');
-      await triggerDownload(url, `${cleanTitle}.mp4`, (percent) => {
+      const isZip = url.includes('.zip');
+      const isImg = isPhotoProject || url.includes('.jpg') || url.includes('.png') || url.includes('.jpeg') || url.includes('.webp');
+      const ext = isZip ? 'zip' : (isImg ? 'jpg' : 'mp4');
+      await triggerDownload(url, `${cleanTitle}.${ext}`, (percent) => {
         setDownloadPercent(percent);
       });
       // 100% atingido: transiciona para o botão branco de download concluído
@@ -690,13 +711,6 @@ export default function ProjectDetail() {
   const isEmbed = isYouTube || isDrive || isInstagram;
   const isVertical = project.videoUrl.includes('shorts/') || project.videoUrl.includes('instagram.com');
 
-  const validImages = (project.images || []).filter((img): img is string => 
-    typeof img === 'string' && 
-    img.trim().length > 0 && 
-    !img.startsWith('blob:') && 
-    (img.startsWith('http') || img.startsWith('data:image/'))
-  );
-
   const handlePlayPauseAudio = () => {
     if (!evaluation?.audioUrl) return;
 
@@ -714,292 +728,6 @@ export default function ProjectDetail() {
         .catch((err) => console.error("Error playing evaluation audio", err));
     }
   };
-
-  if (project.isPhotoGallery) {
-    const galleryImages = project.images || [project.thumbnail];
-    const currentImage = galleryImages[activePhotoIndex];
-
-    return (
-      <div className="bg-[#050505] min-h-screen text-neutral-100 flex flex-col justify-between selection:bg-white/10 select-none pb-8 relative overflow-hidden">
-        {/* Subtle top light leak/glow */}
-        <div className="absolute top-0 inset-x-0 h-[400px] bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none z-0" />
-
-        {/* 1. Header (Cinema Bar) */}
-        <header className="relative z-10 w-full max-w-7xl mx-auto px-6 pt-8 pb-4 flex items-center justify-between">
-          <button
-            onClick={() => {
-              const hasInternalReferrer = document.referrer && document.referrer.includes(window.location.host);
-              if (hasInternalReferrer && window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate("/");
-              }
-            }}
-            className="group flex items-center gap-2.5 text-neutral-400 hover:text-white font-medium text-xs tracking-wider uppercase transition-colors duration-300"
-          >
-            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-900 border border-neutral-800 shadow-sm group-hover:scale-105 group-hover:-translate-x-0.5 transition-all">
-              <ArrowLeft size={14} />
-            </span>
-            Voltar
-          </button>
-
-          <div className="text-center hidden md:block">
-            <span className="text-[10px] font-mono tracking-[0.3em] uppercase text-neutral-500 block mb-1">
-              GALERIA DE FOTOS
-            </span>
-            <h1 className="text-sm font-semibold tracking-wide text-neutral-200">
-              {project.title}
-            </h1>
-          </div>
-
-          <div className="font-mono text-xs text-neutral-400 bg-neutral-900 border border-neutral-800 px-3 py-1 rounded-full">
-            {String(activePhotoIndex + 1).padStart(2, "0")} / {String(galleryImages.length).padStart(2, "0")}
-          </div>
-        </header>
-
-        {/* 2. Main Cinema Stage */}
-        <main className="relative z-10 flex-grow flex flex-col items-center justify-center px-4 md:px-12 my-2 md:my-4">
-          <div className="relative w-full max-w-5xl aspect-video md:h-[60vh] md:aspect-auto flex items-center justify-center group/stage">
-            {/* Nav Arrows */}
-            <button
-              onClick={() => {
-                setActivePhotoIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
-                setIsSlideshowActive(false);
-              }}
-              className="absolute left-4 md:-left-8 z-20 flex items-center justify-center w-12 h-12 rounded-full bg-neutral-950/70 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900 hover:scale-105 active:scale-95 transition-all opacity-100 md:opacity-0 md:group-hover/stage:opacity-100 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
-            >
-              <ChevronLeft size={20} />
-            </button>
-
-            <button
-              onClick={() => {
-                setActivePhotoIndex((prev) => (prev + 1) % galleryImages.length);
-                setIsSlideshowActive(false);
-              }}
-              className="absolute right-4 md:-right-8 z-20 flex items-center justify-center w-12 h-12 rounded-full bg-neutral-950/70 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900 hover:scale-105 active:scale-95 transition-all opacity-100 md:opacity-0 md:group-hover/stage:opacity-100 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
-            >
-              <ChevronRight size={20} />
-            </button>
-
-            {/* Photo Viewport */}
-            <div className="relative w-full h-full bg-[#0a0a0a] border border-neutral-900 rounded-none overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] flex items-center justify-center">
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={activePhotoIndex}
-                  src={currentImage || project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
-                  alt={`${project.title} - Foto ${activePhotoIndex + 1}`}
-                  initial={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, scale: 1.01, filter: "blur(4px)" }}
-                  transition={{ duration: 0.4 }}
-                  className="w-full h-full object-contain max-h-[50vh] md:max-h-[60vh]"
-                  referrerPolicy="no-referrer"
-                />
-              </AnimatePresence>
-
-              {/* Dynamic Slideshow Progress Line */}
-              {isSlideshowActive && (
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-neutral-900/50 overflow-hidden">
-                  <motion.div
-                    className="h-full bg-emerald-500"
-                    style={{ width: `${slideshowProgress}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-
-        {/* 3. Controls & Metadata */}
-        <section className="relative z-10 w-full max-w-4xl mx-auto px-6 mt-4">
-          <div className="flex flex-col items-center text-center gap-4">
-            <div className="md:hidden">
-              <h1 className="text-lg font-bold text-neutral-200">{project.title}</h1>
-            </div>
-
-            {project.description && (
-              <p className="text-neutral-400 font-light text-xs md:text-sm max-w-2xl leading-relaxed">
-                {project.description}
-              </p>
-            )}
-
-            <div className="w-full border-t border-neutral-900 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-              {/* Tags inside detail view only */}
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                {(project.tags || [project.category]).map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 bg-neutral-950 border border-neutral-800 px-3 py-1 rounded-full shadow-inner"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              {/* Minimalist Slideshow Button */}
-              <button
-                onClick={() => setIsSlideshowActive((prev) => !prev)}
-                className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase transition-all duration-300 shadow-md ${isSlideshowActive
-                    ? "bg-emerald-600 hover:bg-emerald-500 text-white scale-[1.02]"
-                    : "bg-white hover:bg-neutral-200 text-neutral-950"
-                  }`}
-              >
-                {isSlideshowActive ? (
-                  <>
-                    <Pause size={12} fill="currentColor" /> Pausar Slideshow
-                  </>
-                ) : (
-                  <>
-                    <Play size={12} fill="currentColor" /> Slideshow
-                  </>
-                )}
-              </button>
-
-              {/* Optional Download Cirurgicamente Customizado */}
-              <div>
-                {project.allowDownload !== false && (
-                  <button
-                    onClick={() => {
-                      if (isDirectUnlocked || !project.downloadCode) {
-                        handleDirectDownload(project.downloadUrl || project.videoUrl || '');
-                      } else {
-                        setShowDownloadModal(true);
-                        setDownloadCodeInput('');
-                        setDownloadError('');
-                      }
-                    }}
-                    className={`group relative h-[42px] rounded-[13px] p-0 flex items-center overflow-hidden shadow-sm active:scale-[0.98] transition-all duration-200 cursor-pointer select-none border-[2px] ${
-                      isDownloadCompleted
-                        ? 'bg-white border-[#4AC80B]'
-                        : isDirectUnlocked
-                        ? 'bg-[#52C31A] border-[#4AC80B] hover:brightness-105'
-                        : 'bg-neutral-950 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900'
-                    }`}
-                    title="Download do Projeto"
-                  >
-                    {(isDownloading || isDownloadCompleted) ? (
-                      <>
-                        {/* Camada Base (Fundo Verde com Texto Branco) */}
-                        <div className="absolute inset-0 flex items-center select-none pointer-events-none z-0">
-                          <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0">
-                            <span className="font-urbanist font-black text-[10px] text-[#52C31A] tracking-tighter">
-                              {downloadPercent ?? 0}%
-                            </span>
-                            <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
-                          </div>
-                          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist select-none overflow-hidden">
-                            <span className="font-urbanist font-bold text-[13px] tracking-wide text-white truncate w-full">
-                              Baixando... {downloadPercent !== null ? `${downloadPercent}%` : ''}
-                            </span>
-                            <span className="font-urbanist font-light text-[10px] text-white/95 truncate w-full">
-                              Aguarde a finalização
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Camada Branca que vem enchendo até o final com Texto em Letra Verde */}
-                        <div
-                          className="absolute inset-0 bg-white z-10 pointer-events-none overflow-hidden transition-all duration-150 ease-out flex items-center select-none"
-                          style={{
-                            clipPath: `inset(0 ${100 - (isDownloadCompleted ? 100 : Math.min(100, Math.max(0, downloadPercent ?? 0)))}% 0 0)`,
-                            WebkitClipPath: `inset(0 ${100 - (isDownloadCompleted ? 100 : Math.min(100, Math.max(0, downloadPercent ?? 0)))}% 0 0)`,
-                          }}
-                        >
-                          <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0">
-                            {isDownloadCompleted ? (
-                              <motion.div
-                                key="desk-check"
-                                initial={{ scale: 0.3, opacity: 0 }}
-                                animate={{ scale: [0.3, 1.25, 1], opacity: 1 }}
-                                className="flex items-center justify-center"
-                              >
-                                <Check size={18} className="text-[#52C31A]" strokeWidth={3} />
-                              </motion.div>
-                            ) : (
-                              <span className="font-urbanist font-black text-[10px] text-[#52C31A] tracking-tighter">
-                                {downloadPercent ?? 0}%
-                              </span>
-                            )}
-                            <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
-                          </div>
-                          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pl-3.5 leading-tight font-urbanist select-none overflow-hidden">
-                            <span className="font-urbanist font-bold text-[13px] tracking-wide text-[#52C31A] truncate w-full">
-                              {isDownloadCompleted ? 'Download Concluído!' : `Baixando... ${downloadPercent !== null ? `${downloadPercent}%` : ''}`}
-                            </span>
-                            <span className="font-urbanist font-semibold text-[10px] text-[#52C31A] truncate w-full">
-                              {isDownloadCompleted ? 'Verifique em sua galeria' : 'Aguarde a finalização'}
-                            </span>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {/* Caixa Branca com Ícone (Cadeado Fechado / Aberto) e Setinha */}
-                        <div className="relative h-full w-[40px] min-w-[40px] bg-white flex items-center justify-center flex-shrink-0 z-10">
-                          {isDirectUnlocked ? (
-                            <Unlock size={16} className="text-[#52C31A] ml-0.5" strokeWidth={2.5} />
-                          ) : (
-                            <Lock size={16} className="text-neutral-950" strokeWidth={2.5} />
-                          )}
-                          <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-white z-20 pointer-events-none" />
-                        </div>
-
-                        {/* Texto Download Liberado / Solicitar Download */}
-                        <div className="relative z-10 flex flex-col items-center justify-center text-center px-3 pl-3.5 text-white leading-tight font-urbanist">
-                          <span className="font-urbanist font-bold text-[13px] tracking-wide">
-                            {isDirectUnlocked ? "Download Liberado" : "Solicitar Download"}
-                          </span>
-                          <span className={`font-urbanist font-light text-[10px] ${isDirectUnlocked ? 'text-white/95' : 'text-neutral-300'}`}>
-                            {isDirectUnlocked ? "Clique para iniciar o download" : "Cole o código para liberar"}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 4. Filmstrip Timeline / Thumbnails */}
-        <section className="relative z-10 w-full max-w-4xl mx-auto px-6 mt-6">
-          <div className="relative">
-            <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-2 snap-x">
-              {galleryImages.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setActivePhotoIndex(idx);
-                    setIsSlideshowActive(false);
-                  }}
-                  className={`relative flex-shrink-0 w-20 md:w-24 aspect-video rounded-none overflow-hidden border transition-all duration-300 snap-center ${idx === activePhotoIndex
-                      ? "border-emerald-500 scale-105 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                      : "border-neutral-800 hover:border-neutral-500 opacity-60 hover:opacity-100"
-                    }`}
-                >
-                  <img src={img || project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Continuous Navigation to Next Project */}
-        {nextProject && (
-          <footer className="relative z-10 w-full max-w-4xl mx-auto px-6 mt-8 pt-4 border-t border-neutral-900/60 flex items-center justify-between text-xs text-neutral-500">
-            <span>Próximo Projeto:</span>
-            <Link
-              to={`/projeto/${nextProject.id}`}
-              className="text-neutral-300 hover:text-emerald-400 font-semibold transition-colors duration-300 flex items-center gap-1 group"
-            >
-              {nextProject.title} <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </footer>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 pb-24 relative">
@@ -1029,7 +757,17 @@ export default function ProjectDetail() {
         </div>
 
         {/* Hero Title Area */}
-        <div className="mb-12 max-w-4xl">
+        <div className="mb-10 max-w-4xl">
+          <div className="flex items-center gap-2.5 mb-3">
+            <span className="text-[11px] font-mono tracking-[0.2em] uppercase px-3 py-1 rounded-full bg-neutral-900 text-white font-semibold shadow-xs">
+              {project.category || (isPhotoProject ? 'Fotografia' : 'Audiovisual')}
+            </span>
+            {isPhotoProject && allGalleryPhotos.length > 0 && (
+              <span className="text-xs text-neutral-500 font-medium">
+                {allGalleryPhotos.length} {allGalleryPhotos.length === 1 ? 'foto' : 'fotos'}
+              </span>
+            )}
+          </div>
           <motion.h1
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1040,39 +778,195 @@ export default function ProjectDetail() {
           <div className="h-1 w-20 bg-neutral-900 mt-6 rounded-full" />
         </div>
 
-        {/* Main Grid: Video + Details */}
+        {/* Main Grid: Media + Details */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
 
-          {/* Left Column: Video Container (Lg: col-span-8) */}
-          <div className={`lg:col-span-8 space-y-6 relative z-0`}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className={`relative w-full aspect-square md:aspect-video lg:aspect-square rounded-none overflow-hidden shadow-md z-10 transition-all duration-300 border-0`}
-            >
-              {!showVideoModal ? (
-                <div
-                  className="absolute inset-0 w-full h-full cursor-pointer group overflow-hidden"
-                  onClick={() => setShowVideoModal(true)}
-                >
-                  <img
-                    src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
-                    alt={project.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-100"
-                  />
-                  {/* Somente o Ícone de Play (sem círculo / sem overlay escuro) */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Play
-                      size={68}
-                      className="fill-white text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.65)] ml-1 transition-transform duration-300 group-hover:scale-115"
+          {/* Left Column: Media Container (Lg: col-span-8) */}
+          <div className="lg:col-span-8 space-y-6 relative z-0">
+            {isPhotoProject ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className="space-y-4"
+              >
+                {/* Main Featured Photo Stage */}
+                <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] rounded-2xl overflow-hidden bg-neutral-950 border border-neutral-200/80 shadow-md group/stage flex items-center justify-center">
+                  <AnimatePresence mode="wait">
+                    <motion.img
+                      key={activePhotoIndex}
+                      src={currentPhoto}
+                      alt={`${project.title} - Foto ${activePhotoIndex + 1}`}
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="w-full h-full object-contain cursor-pointer select-none"
+                      onClick={() => {
+                        const targetIdx = validImages.indexOf(currentPhoto);
+                        setSelectedGalleryIndex(targetIdx !== -1 ? targetIdx : 0);
+                      }}
                     />
-                  </div>
-                </div>
-              ) : null}
-            </motion.div>
+                  </AnimatePresence>
 
-            {/* Galeria de Fotos do Imóvel */}
+                  {/* Prev Button */}
+                  {allGalleryPhotos.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePhotoIndex((prev) => (prev - 1 + allGalleryPhotos.length) % allGalleryPhotos.length);
+                        setIsSlideshowActive(false);
+                      }}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/90 hover:bg-white text-neutral-900 flex items-center justify-center shadow-lg backdrop-blur-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                      title="Foto anterior"
+                    >
+                      <ChevronLeft size={22} />
+                    </button>
+                  )}
+
+                  {/* Next Button */}
+                  {allGalleryPhotos.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePhotoIndex((prev) => (prev + 1) % allGalleryPhotos.length);
+                        setIsSlideshowActive(false);
+                      }}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/90 hover:bg-white text-neutral-900 flex items-center justify-center shadow-lg backdrop-blur-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                      title="Próxima foto"
+                    >
+                      <ChevronRight size={22} />
+                    </button>
+                  )}
+
+                  {/* Counter Badge Top-Left */}
+                  <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-full bg-neutral-950/75 backdrop-blur-md text-white font-mono text-xs font-semibold shadow-md flex items-center gap-1.5 pointer-events-none">
+                    <ImageIcon size={13} className="text-neutral-300" />
+                    <span>{String(activePhotoIndex + 1).padStart(2, '0')} / {String(allGalleryPhotos.length).padStart(2, '0')}</span>
+                  </div>
+
+                  {/* Expand Lightbox Button Top-Right */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const targetIdx = validImages.indexOf(currentPhoto);
+                      setSelectedGalleryIndex(targetIdx !== -1 ? targetIdx : 0);
+                    }}
+                    className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-neutral-950/75 hover:bg-neutral-950 text-white flex items-center justify-center shadow-md backdrop-blur-md transition-transform hover:scale-105 cursor-pointer"
+                    title="Ampliar em tela cheia"
+                  >
+                    <Maximize2 size={16} />
+                  </button>
+
+                  {/* Slideshow Progress Bar along bottom */}
+                  {isSlideshowActive && (
+                    <div className="absolute bottom-0 inset-x-0 h-1 bg-black/40 overflow-hidden z-20">
+                      <motion.div
+                        className="h-full bg-[#52C31A]"
+                        style={{ width: `${slideshowProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Controls Bar Below Main Stage: Slideshow Toggle + Expand */}
+                {allGalleryPhotos.length > 1 && (
+                  <div className="flex items-center justify-between gap-3 px-1 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsSlideshowActive((prev) => !prev)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                        isSlideshowActive
+                          ? "bg-[#52C31A] text-white hover:brightness-105"
+                          : "bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-200/80"
+                      }`}
+                    >
+                      {isSlideshowActive ? (
+                        <>
+                          <Pause size={13} fill="currentColor" /> Pausar Slideshow
+                        </>
+                      ) : (
+                        <>
+                          <Play size={13} fill="currentColor" /> Iniciar Slideshow
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetIdx = validImages.indexOf(currentPhoto);
+                        setSelectedGalleryIndex(targetIdx !== -1 ? targetIdx : 0);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition-colors cursor-pointer"
+                    >
+                      <Maximize2 size={13} />
+                      Ver em tela cheia
+                    </button>
+                  </div>
+                )}
+
+                {/* Thumbnails Filmstrip */}
+                {allGalleryPhotos.length > 1 && (
+                  <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-2 px-0.5">
+                    {allGalleryPhotos.map((img, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setActivePhotoIndex(idx);
+                          setIsSlideshowActive(false);
+                        }}
+                        className={`relative flex-shrink-0 w-20 sm:w-24 aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all duration-200 cursor-pointer ${
+                          idx === activePhotoIndex
+                            ? "border-neutral-900 ring-2 ring-neutral-900/20 scale-[1.02] shadow-sm"
+                            : "border-transparent opacity-60 hover:opacity-100 hover:scale-[1.01]"
+                        }`}
+                      >
+                        <img
+                          src={img}
+                          alt={`${project.title} - Miniatura ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              /* Video Container */
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className={`relative w-full aspect-square md:aspect-video lg:aspect-square rounded-none overflow-hidden shadow-md z-10 transition-all duration-300 border-0`}
+              >
+                {!showVideoModal ? (
+                  <div
+                    className="absolute inset-0 w-full h-full cursor-pointer group overflow-hidden"
+                    onClick={() => setShowVideoModal(true)}
+                  >
+                    <img
+                      src={project.thumbnail || "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800"}
+                      alt={project.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-100"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Play
+                        size={68}
+                        className="fill-white text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.65)] ml-1 transition-transform duration-300 group-hover:scale-115"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </motion.div>
+            )}
+
+            {/* Galeria de Fotos do Imóvel / Ensaio */}
             {validImages.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -1086,7 +980,7 @@ export default function ProjectDetail() {
                       <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-neutral-900 text-white shadow-sm">
                         <ImageIcon size={16} />
                       </span>
-                      Galeria de Fotos do Imóvel
+                      {isPhotoProject ? 'Todas as Fotos do Ensaio' : 'Galeria de Fotos do Imóvel'}
                     </h3>
                     <p className="text-xs text-neutral-500 font-light mt-1">
                       Clique em qualquer foto para ampliar em alta resolução
@@ -1102,7 +996,7 @@ export default function ProjectDetail() {
                     <div
                       key={idx}
                       onClick={() => setSelectedGalleryIndex(idx)}
-                      className="group relative aspect-4/3 rounded-none overflow-hidden cursor-pointer bg-neutral-100 border border-neutral-200/70 shadow-sm hover:shadow-md transition-all duration-300"
+                      className="group relative aspect-4/3 rounded-2xl overflow-hidden cursor-pointer bg-neutral-100 border border-neutral-200/70 shadow-xs hover:shadow-md transition-all duration-300"
                     >
                       <img
                         src={imgUrl}
@@ -1218,7 +1112,7 @@ export default function ProjectDetail() {
                   onClick={() => {
                     if (unlockAnimationPhase !== 'idle' && unlockAnimationPhase !== 'unlocked') return;
                     if (isFinalUnlocked || !project.downloadCode) {
-                      handleDirectDownload(project.downloadUrl || project.videoUrl || '');
+                      handleDirectDownload(project.downloadUrl || (isPhotoProject ? (allGalleryPhotos[0] || project.thumbnail) : project.videoUrl) || '');
                     } else {
                       setShowDownloadModal(true);
                       setDownloadCodeInput('');

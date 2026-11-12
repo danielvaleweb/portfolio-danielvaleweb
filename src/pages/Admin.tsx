@@ -7,7 +7,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, auth } from "../firebase";
 import { signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import AdminLogin, { isAuthorizedAdminEmail } from '../components/AdminLogin';
-import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore, getNotes, addNote, deleteNote, addFinancialTransaction, updateFinancialTransaction, getProjectFinancialTransaction, getFinancialTransactions } from '../utils/storage';
+import { getProjects, sortProjectsByRecent, addProject, updateProject, deleteProject, getClients, addClient, updateClient, deleteClient, clearFictitiousClients, clearAllClients, getNotifications, markNotificationsAsRead, syncAllToFirestore, syncLocalProjectsToFirestore, getNotes, addNote, deleteNote, addFinancialTransaction, updateFinancialTransaction, getProjectFinancialTransaction, getFinancialTransactions } from '../utils/storage';
 import { getPublicOrigin } from '../utils/urlHelper';
 import ProjectForm from '../components/ProjectForm';
 import ConfirmModal from '../components/ConfirmModal';
@@ -734,6 +734,7 @@ export default function Admin() {
   useEffect(() => {
     const loadNotifs = () => setNotifications(getNotifications());
     loadNotifs();
+    syncLocalProjectsToFirestore();
     window.addEventListener('notificationsUpdated', loadNotifs as any);
     return () => window.removeEventListener('notificationsUpdated', loadNotifs as any);
   }, []);

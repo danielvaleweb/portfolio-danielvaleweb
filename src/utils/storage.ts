@@ -18,10 +18,10 @@ import {
   HomepageCategoryConfig,
   FinancialTransaction
 } from "../types";
-import { ref as storageRef, deleteObject } from "firebase/storage";
+import { ref as storageRef, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage, db } from "../firebase";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from "firebase/firestore";
-import { saveGalleryToIndexedDB, getGalleryFromIndexedDB } from "./imageStorage";
+import { saveGalleryToIndexedDB, getGalleryFromIndexedDB, dataUrlToBlob } from "./imageStorage";
 
 const STORAGE_KEY = "daniel_vale_projects";
 const DELETED_PROJECTS_KEY = "daniel_vale_deleted_project_ids";
@@ -275,16 +275,115 @@ export function clearFictitiousProjects(): number {
   return count;
 }
 
-// Helper to remove undefined properties before sending to Firestore
+// Helper to remove undefined properties before sending to Firestore and prevent document size limit (1MB) errors
 function cleanFirestoreData<T extends Record<string, any>>(data: T): Record<string, any> {
   const cleaned: Record<string, any> = {};
   for (const key of Object.keys(data)) {
     const val = data[key];
     if (val !== undefined) {
-      cleaned[key] = val;
+      if (key === 'images' && Array.isArray(val)) {
+        // Remove strings base64 gigantes que excederiam o limite de 1MB do documento Firestore
+        cleaned[key] = val.filter((item: any) => typeof item === 'string' && (!item.startsWith('data:') || item.length < 50000));
+      } else if (key === 'thumbnail' && typeof val === 'string' && val.startsWith('data:') && val.length > 50000) {
+        cleaned[key] = '';
+      } else {
+        cleaned[key] = val;
+      }
     }
   }
   return cleaned;
+}
+
+export async function uploadDataUrlToStorage(dataUrl: string, pathPrefix = "projects/gallery"): Promise<string> {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith("data:")) return dataUrl;
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const ext = dataUrl.includes("image/png") ? "png" : "jpg";
+    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const fileRef = storageRef(storage, `${pathPrefix}_${filename}`);
+    await uploadBytes(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
+    const downloadUrl = await getDownloadURL(fileRef);
+    return downloadUrl;
+  } catch (err) {
+    console.warn("Notice: could not upload dataUrl to Firebase Storage:", err);
+    return dataUrl;
+  }
+}
+
+export async function uploadProjectImagesToStorage(project: Project): Promise<Project> {
+  let updated = { ...project };
+  let hasChanges = false;
+
+  if (updated.thumbnail && updated.thumbnail.startsWith('data:')) {
+    try {
+      const url = await uploadDataUrlToStorage(updated.thumbnail, 'projects/thumbs');
+      if (url && !url.startsWith('data:')) {
+        updated.thumbnail = url;
+        hasChanges = true;
+      }
+    } catch {}
+  }
+
+  if (updated.images && updated.images.some(img => img.startsWith('data:'))) {
+    const newImages: string[] = [];
+    for (const img of updated.images) {
+      if (img.startsWith('data:')) {
+        try {
+          const url = await uploadDataUrlToStorage(img, 'projects/gallery');
+          newImages.push(url);
+          hasChanges = true;
+        } catch {
+          newImages.push(img);
+        }
+      } else {
+        newImages.push(img);
+      }
+    }
+    updated.images = newImages;
+  }
+
+  return updated;
+}
+
+export async function syncLocalProjectsToFirestore(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const localProjects = getProjects();
+    const deletedIds = getDeletedProjectIds();
+
+    for (const p of localProjects) {
+      if (deletedIds.includes(p.id) || isFictitiousProject(p)) continue;
+
+      let updatedP = await uploadProjectImagesToStorage(p);
+      const isChanged = updatedP.thumbnail !== p.thumbnail || JSON.stringify(updatedP.images) !== JSON.stringify(p.images);
+
+      if (isChanged) {
+        const freshList = getProjects();
+        const idx = freshList.findIndex(x => x.id === updatedP.id);
+        if (idx !== -1) {
+          freshList[idx] = updatedP;
+          saveProjects(freshList);
+        }
+        if (updatedP.images && updatedP.images.length > 0) {
+          saveGalleryToIndexedDB(updatedP.id, updatedP.images);
+        }
+      }
+
+      const cleaned = cleanFirestoreData(updatedP);
+      try {
+        await setDoc(doc(db, "projects", updatedP.id), cleaned, { merge: true });
+        const catCollection = getProjectCategoryCollection(updatedP.category);
+        const catSlug = getCategorySlug(updatedP.category);
+        const docTitleId = formatProjectDocId(updatedP.title);
+        setDoc(doc(db, catCollection, docTitleId), cleaned, { merge: true }).catch(() => {});
+        setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleaned, { merge: true }).catch(() => {});
+      } catch (err) {
+        console.warn("Notice syncing local project to Firestore:", updatedP.id, err);
+      }
+    }
+  } catch (err) {
+    console.warn("Notice in syncLocalProjectsToFirestore:", err);
+  }
 }
 
 // Helper to extract numeric creation timestamp from project
@@ -737,7 +836,28 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
     }
   });
 
-  
+  // Salva também nas coleções categorizadas
+  setDoc(doc(db, catCollection, docTitleId), cleanedData).catch(() => {});
+  setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData).catch(() => {});
+
+  // Se houver imagens base64, converte para Firebase Storage em segundo plano e sincroniza
+  if ((project.thumbnail && project.thumbnail.startsWith('data:')) || (project.images && project.images.some(img => img.startsWith('data:')))) {
+    uploadProjectImagesToStorage(project).then((updated) => {
+      const freshList = getProjects();
+      const idx = freshList.findIndex(p => p.id === id);
+      if (idx !== -1) {
+        freshList[idx] = updated;
+        saveProjects(freshList);
+      }
+      if (updated.images && updated.images.length > 0) {
+        saveGalleryToIndexedDB(id, updated.images);
+      }
+      const freshCleaned = cleanFirestoreData(updated);
+      setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => {});
+      setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => {});
+      setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => {});
+    });
+  }
 
   return project;
 }
@@ -803,6 +923,25 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
 
     // Atualiza na coleção hierárquica projetos > categoria > itens
     setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData, { merge: true }).catch(() => {});
+
+    // Se houver imagens base64, converte para Firebase Storage em segundo plano e sincroniza
+    if ((updatedItem.thumbnail && updatedItem.thumbnail.startsWith('data:')) || (updatedItem.images && updatedItem.images.some(img => img.startsWith('data:')))) {
+      uploadProjectImagesToStorage(updatedItem).then((finalItem) => {
+        const freshList = getProjects();
+        const freshIdx = freshList.findIndex(p => p.id === id);
+        if (freshIdx !== -1) {
+          freshList[freshIdx] = finalItem;
+          saveProjects(freshList);
+        }
+        if (finalItem.images && finalItem.images.length > 0) {
+          saveGalleryToIndexedDB(id, finalItem.images);
+        }
+        const freshCleaned = cleanFirestoreData(finalItem);
+        setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => {});
+        setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => {});
+        setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => {});
+      });
+    }
   }
 }
 
@@ -1008,13 +1147,23 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
 
     // Salva todos os projetos em 'projects', nas coleções categorizadas com o TÍTULO e na árvore hierárquica
     for (const p of projects) {
-      const cleaned = cleanFirestoreData(p);
-      const catCol = getProjectCategoryCollection(p.category);
-      const catSlug = getCategorySlug(p.category);
-      const docTitleId = formatProjectDocId(p.title);
+      let updatedP = await uploadProjectImagesToStorage(p);
+      const isChanged = updatedP.thumbnail !== p.thumbnail || JSON.stringify(updatedP.images) !== JSON.stringify(p.images);
+      if (isChanged) {
+        const freshList = getProjects();
+        const idx = freshList.findIndex(x => x.id === updatedP.id);
+        if (idx !== -1) {
+          freshList[idx] = updatedP;
+          saveProjects(freshList);
+        }
+      }
+      const cleaned = cleanFirestoreData(updatedP);
+      const catCol = getProjectCategoryCollection(updatedP.category);
+      const catSlug = getCategorySlug(updatedP.category);
+      const docTitleId = formatProjectDocId(updatedP.title);
 
       // Coleção principal 'projects'
-      await setDoc(doc(db, "projects", p.id), cleaned);
+      await setDoc(doc(db, "projects", updatedP.id), cleaned);
       // Coleção categorizada (ex: projetos_imobiliario / CASA_ALPHAVILLE)
       await setDoc(doc(db, catCol, docTitleId), cleaned).catch(() => {});
       // Coleção hierárquica (projetos > imobiliario > itens > CASA_ALPHAVILLE)
@@ -1728,6 +1877,7 @@ if (typeof window !== "undefined") {
   // Purge any fictitious projects and clients from local storage immediately on startup
   clearFictitiousProjects();
   clearFictitiousClients();
+  syncLocalProjectsToFirestore();
 
   // 1. Projects listener
   try {

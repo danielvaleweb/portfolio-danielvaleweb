@@ -3,7 +3,7 @@ import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
 import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff, DollarSign, Cloud, HardDrive, FileVideo } from 'lucide-react';
-import { getClients, updateProject, getProjectFinancialTransaction } from '../utils/storage';
+import { getClients, updateProject, getProjectFinancialTransaction, uploadDataUrlToStorage } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
 
@@ -193,23 +193,14 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       const finishWithPermanentUrl = () => {
         if (resolved) return;
         resolved = true;
-        let currentP = Math.max(item.progress, 40);
-        updateItemProgress(item.id, currentP, 'uploading');
-        const interval = setInterval(() => {
-          currentP += Math.floor(Math.random() * 20) + 15;
-          if (currentP >= 100) {
-            clearInterval(interval);
-            updateItemProgress(item.id, 100, 'done', permanentDataUrl);
-            setTimeout(() => resolve(permanentDataUrl), 150);
-          } else {
-            updateItemProgress(item.id, currentP, 'uploading');
-          }
-        }, 50);
+        updateItemProgress(item.id, 100, 'done', permanentDataUrl);
+        resolve(permanentDataUrl);
       };
 
+      // Timeout generoso de salvaguarda de 90s caso a conexão congele
       const timeoutTimer = setTimeout(() => {
         finishWithPermanentUrl();
-      }, 5000);
+      }, 90000);
 
       try {
         const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^/.]+$/, "") + ".jpg";
@@ -224,11 +215,12 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           (snapshot) => {
             if (snapshot.totalBytes > 0 && !resolved) {
               const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-              updateItemProgress(item.id, Math.min(Math.max(pct, 25), 98), 'uploading');
+              updateItemProgress(item.id, Math.min(Math.max(pct, 15), 98), 'uploading');
             }
           },
-          () => {
+          (error) => {
             clearTimeout(timeoutTimer);
+            console.warn("Notice during storage upload, using local fallback:", error);
             finishWithPermanentUrl();
           },
           async () => {
@@ -269,7 +261,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
         id: `gallery_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 7)}`,
         name: file.name,
         previewUrl: dataUrl,
-        progress: 30,
+        progress: 25,
         status: 'uploading',
         finalUrl: dataUrl
       };
@@ -278,25 +270,27 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
     setUploadingGalleryItems(prev => [...prev, ...itemsToUpload.map(x => x.item)]);
 
-    // 2. Executa os uploads paralelamente e salva imediatamente no projeto
-    await Promise.all(
+    // 2. Executa os uploads paralelamente e salva todos de uma vez
+    const uploadedUrls = await Promise.all(
       itemsToUpload.map(async ({ item, file, dataUrl }) => {
-        const url = await uploadSingleGalleryFile(item, file, dataUrl);
-        if (url) {
-          setFormData(prev => {
-            const nextImages = [...(prev.images || []), url];
-            if (project?.id) {
-              saveGalleryToIndexedDB(project.id, nextImages);
-              updateProject(project.id, { images: nextImages });
-            }
-            return {
-              ...prev,
-              images: nextImages
-            };
-          });
-        }
+        return uploadSingleGalleryFile(item, file, dataUrl);
       })
     );
+
+    const validUrls = uploadedUrls.filter(Boolean);
+    if (validUrls.length > 0) {
+      setFormData(prev => {
+        const nextImages = [...(prev.images || []), ...validUrls];
+        if (project?.id) {
+          saveGalleryToIndexedDB(project.id, nextImages);
+          updateProject(project.id, { images: nextImages });
+        }
+        return {
+          ...prev,
+          images: nextImages
+        };
+      });
+    }
 
     // 3. Mantém o feedback de 100% concluído por um instante antes de finalizar
     setTimeout(() => {
@@ -391,41 +385,82 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     setFormData((prev) => ({ ...prev, [e.target.name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const isPhoto = formData.category === 'Fotos' || Boolean(formData.isPhotoGallery);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-    // Se for projeto de foto e faltar o título, define um padrão amigável sem exigir nada
-    const cleanTitle = (formData.title || '').trim() || (isPhoto ? 'Ensaio Fotográfico' : 'Novo Projeto');
+    try {
+      const isPhoto = formData.category === 'Fotos' || Boolean(formData.isPhotoGallery);
 
-    // Se for projeto de foto e não tiver thumbnail definida, usa a primeira imagem da galeria
-    let finalThumbnail = formData.thumbnail?.trim() || '';
-    if (!finalThumbnail && formData.images && formData.images.length > 0) {
-      finalThumbnail = formData.images[0];
-    }
+      // Se for projeto de foto e faltar o título, define um padrão amigável sem exigir nada
+      const cleanTitle = (formData.title || '').trim() || (isPhoto ? 'Ensaio Fotográfico' : 'Novo Projeto');
 
-    const finalData: Partial<Project> = {
-      ...formData,
-      title: cleanTitle,
-      thumbnail: finalThumbnail,
-      isPhotoGallery: isPhoto,
-      category: isPhoto ? 'Fotos' : (formData.category || 'Imobiliário'),
-      // Se não selecionou cliente, desativa o card de cliente para não exibir vazio
-      showClientInfo: formData.clientId ? Boolean(formData.showClientInfo) : false,
-      videoUrl: formData.videoUrl?.trim() || '',
-      description: formData.description?.trim() || '',
-    };
+      // Se for projeto de foto e não tiver thumbnail definida, usa a primeira imagem da galeria
+      let finalThumbnail = formData.thumbnail?.trim() || '';
+      if (!finalThumbnail && formData.images && formData.images.length > 0) {
+        finalThumbnail = formData.images[0];
+      }
 
-    if (project?.id && formData.images && formData.images.length > 0) {
-      saveGalleryToIndexedDB(project.id, formData.images);
-      updateProject(project.id, { 
-        images: formData.images, 
-        isPhotoGallery: isPhoto,
-        thumbnail: finalData.thumbnail,
+      // Se a thumbnail for base64, faz upload para o Firebase Storage antes de salvar
+      if (finalThumbnail.startsWith('data:')) {
+        try {
+          const remoteThumb = await uploadDataUrlToStorage(finalThumbnail, 'projects/thumbs');
+          if (remoteThumb && !remoteThumb.startsWith('data:')) {
+            finalThumbnail = remoteThumb;
+          }
+        } catch {}
+      }
+
+      // Se a galeria contiver imagens base64, converte para Firebase Storage antes de salvar
+      let finalImages = [...(formData.images || [])];
+      if (finalImages.some(img => img.startsWith('data:'))) {
+        finalImages = await Promise.all(
+          finalImages.map(async (img) => {
+            if (img.startsWith('data:')) {
+              try {
+                const url = await uploadDataUrlToStorage(img, 'projects/gallery');
+                return url;
+              } catch {
+                return img;
+              }
+            }
+            return img;
+          })
+        );
+      }
+      if (!finalThumbnail && finalImages.length > 0) {
+        finalThumbnail = finalImages[0];
+      }
+
+      const finalData: Partial<Project> = {
+        ...formData,
         title: cleanTitle,
-      });
+        thumbnail: finalThumbnail,
+        images: finalImages,
+        isPhotoGallery: isPhoto,
+        category: isPhoto ? 'Fotos' : (formData.category || 'Imobiliário'),
+        // Se não selecionou cliente, desativa o card de cliente para não exibir vazio
+        showClientInfo: formData.clientId ? Boolean(formData.showClientInfo) : false,
+        videoUrl: formData.videoUrl?.trim() || '',
+        description: formData.description?.trim() || '',
+      };
+
+      if (project?.id && finalImages.length > 0) {
+        saveGalleryToIndexedDB(project.id, finalImages);
+        updateProject(project.id, { 
+          images: finalImages, 
+          isPhotoGallery: isPhoto,
+          thumbnail: finalData.thumbnail,
+          title: cleanTitle,
+        });
+      }
+      onSave(finalData, paymentStatus);
+    } finally {
+      setIsSubmitting(false);
     }
-    onSave(finalData, paymentStatus);
   };
 
   const handleAddTag = () => {
@@ -1191,10 +1226,22 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             </button>
             <button 
               type="submit"
-              className="flex items-center gap-2 bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm cursor-pointer"
+              disabled={isSubmitting || uploadingGallery}
+              className={`flex items-center gap-2 bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-full text-[13px] font-bold transition-all shadow-sm ${
+                isSubmitting || uploadingGallery ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800 dark:hover:bg-gray-200 cursor-pointer'
+              }`}
             >
-              <Save size={16} strokeWidth={2.5} />
-              {t[lang].save}
+              {isSubmitting ? (
+                <>
+                  <Loader size={16} className="animate-spin" />
+                  Salvando na nuvem...
+                </>
+              ) : (
+                <>
+                  <Save size={16} strokeWidth={2.5} />
+                  {t[lang].save}
+                </>
+              )}
             </button>
           </div>
         </div>
