@@ -81,6 +81,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       ...project,
       visibility: project.visibility || 'public',
       showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
+      showDescription: project.showDescription !== undefined ? project.showDescription : true,
       images: project.images || [],
     } : {
       title: '',
@@ -91,6 +92,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       tags: [],
       clientId: '',
       showClientInfo: true,
+      showDescription: true,
       visibility: 'public',
       images: [],
       allowDownload: false,
@@ -127,6 +129,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
         ...prev,
         ...project,
         showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
+        showDescription: project.showDescription !== undefined ? project.showDescription : true,
         images: (project.images && project.images.length > 0) ? project.images : (prev.images || [])
       }));
       const existingTx = getProjectFinancialTransaction(project.id);
@@ -395,8 +398,8 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     try {
       const isPhoto = formData.category === 'Fotos' || Boolean(formData.isPhotoGallery);
 
-      // Se for projeto de foto e faltar o título, define um padrão amigável sem exigir nada
-      const cleanTitle = (formData.title || '').trim() || (isPhoto ? 'Ensaio Fotográfico' : 'Novo Projeto');
+      // Se não adicionar título, não define título padrão (fica sem título)
+      const cleanTitle = (formData.title || '').trim();
 
       // Se for projeto de foto e não tiver thumbnail definida, usa a primeira imagem da galeria
       let finalThumbnail = formData.thumbnail?.trim() || '';
@@ -444,6 +447,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
         category: isPhoto ? 'Fotos' : (formData.category || 'Imobiliário'),
         // Se não selecionou cliente, desativa o card de cliente para não exibir vazio
         showClientInfo: formData.clientId ? Boolean(formData.showClientInfo) : false,
+        showDescription: formData.showDescription !== false,
         videoUrl: formData.videoUrl?.trim() || '',
         description: formData.description?.trim() || '',
       };
@@ -540,6 +544,23 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
               className="w-full bg-gray-100 dark:bg-[#1a1a1a] border border-gray-300 dark:border-[#222] text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-gray-400 dark:border-[#444] transition-colors custom-scrollbar"
               placeholder={formData.category === 'Fotos' ? (lang === 'pt' ? 'Sinopse ou observações (opcional)...' : 'Synopsis or notes (optional)...') : (lang === 'pt' ? 'Breve sinopse do projeto...' : 'Brief synopsis of the project...')}
             />
+            {/* Toggle para exibir ou não a seção Sobre a Produção */}
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                {lang === 'pt' ? "Exibir 'Sobre a Produção' no projeto" : "Exibir 'Sobre a Produção' no projeto"}
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                <input 
+                  type="checkbox" 
+                  name="showDescription" 
+                  className="sr-only" 
+                  checked={formData.showDescription !== false} 
+                  onChange={handleChange} 
+                />
+                <div className={`block w-11 h-6 rounded-full transition-colors ${formData.showDescription !== false ? 'bg-[#25D366]' : 'bg-gray-200 dark:bg-[#333]'}`}></div>
+                <div className={`dot absolute left-0.5 top-0.5 bg-white dark:bg-[#1a1a1a] w-5 h-5 rounded-full transition-transform ${formData.showDescription !== false ? 'transform translate-x-5' : ''}`}></div>
+              </label>
+            </div>
           </div>
 
           <div className="space-y-4 md:col-span-2 bg-gray-50 dark:bg-[#161616] border border-gray-200 dark:border-[#262626] rounded-2xl p-5">

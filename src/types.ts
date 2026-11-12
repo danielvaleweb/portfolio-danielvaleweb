@@ -15,6 +15,7 @@ export interface Project {
   views?: number;
   clientId?: string;
   showClientInfo?: boolean;
+  showDescription?: boolean;
   allowDownload?: boolean;
   downloadCode?: string;
   createdAt?: number;

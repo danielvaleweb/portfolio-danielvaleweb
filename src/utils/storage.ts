@@ -1,11 +1,11 @@
-import { 
-  Project, 
-  projects as initialProjects, 
-  Client, 
-  initialClients, 
-  Evaluation, 
-  initialEvaluations, 
-  Lead, 
+import {
+  Project,
+  projects as initialProjects,
+  Client,
+  initialClients,
+  Evaluation,
+  initialEvaluations,
+  Lead,
   Notification,
   Note,
   FileAsset,
@@ -43,7 +43,7 @@ export function getProjectVisibilities(): Record<string, 'public' | 'unlisted'> 
   try {
     const data = localStorage.getItem(VISIBILITY_STORAGE_KEY);
     if (data) return JSON.parse(data);
-  } catch {}
+  } catch { }
   return {};
 }
 
@@ -52,14 +52,14 @@ export function setProjectVisibility(projectId: string, visibility: 'public' | '
     const current = getProjectVisibilities();
     current[projectId] = visibility;
     localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(current));
-  } catch {}
+  } catch { }
 }
 
 export function getProjectFavorites(): Record<string, boolean> {
   try {
     const data = localStorage.getItem(FAVORITES_STORAGE_KEY);
     if (data) return JSON.parse(data);
-  } catch {}
+  } catch { }
   return {};
 }
 
@@ -68,7 +68,7 @@ export function setProjectFavorite(projectId: string, isFavorite: boolean): void
     const current = getProjectFavorites();
     current[projectId] = isFavorite;
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(current));
-  } catch {}
+  } catch { }
 }
 
 // Known fictitious / placeholder project IDs and titles
@@ -172,8 +172,8 @@ export function clearFictitiousClients(): number {
             addDeletedClientId(c.id);
             count++;
             try {
-              deleteDoc(doc(db, "clients", c.id)).catch(() => {});
-            } catch {}
+              deleteDoc(doc(db, "clients", c.id)).catch(() => { });
+            } catch { }
             return false;
           }
           return true;
@@ -188,8 +188,8 @@ export function clearFictitiousClients(): number {
   // Attempt cloud delete for known fictitious client docs
   FICTITIOUS_CLIENT_IDS.forEach(id => {
     try {
-      
-    } catch {}
+
+    } catch { }
   });
 
   window.dispatchEvent(new Event("clients-updated"));
@@ -202,8 +202,8 @@ export function clearAllClients(): void {
   saveClients([]);
   list.forEach(c => {
     try {
-      deleteDoc(doc(db, "clients", c.id)).catch(() => {});
-    } catch {}
+      deleteDoc(doc(db, "clients", c.id)).catch(() => { });
+    } catch { }
   });
   window.dispatchEvent(new Event("clients-updated"));
 }
@@ -267,8 +267,8 @@ export function clearFictitiousProjects(): number {
   // Attempt cloud delete for known fictitious docs
   FICTITIOUS_PROJECT_IDS.forEach(id => {
     try {
-      deleteDoc(doc(db, "projects", id)).catch(() => {});
-    } catch {}
+      deleteDoc(doc(db, "projects", id)).catch(() => { });
+    } catch { }
   });
 
   window.dispatchEvent(new Event("projects-updated"));
@@ -321,7 +321,7 @@ export async function uploadProjectImagesToStorage(project: Project): Promise<Pr
         updated.thumbnail = url;
         hasChanges = true;
       }
-    } catch {}
+    } catch { }
   }
 
   if (updated.images && updated.images.some(img => img.startsWith('data:'))) {
@@ -375,8 +375,8 @@ export async function syncLocalProjectsToFirestore(): Promise<void> {
         const catCollection = getProjectCategoryCollection(updatedP.category);
         const catSlug = getCategorySlug(updatedP.category);
         const docTitleId = formatProjectDocId(updatedP.title);
-        setDoc(doc(db, catCollection, docTitleId), cleaned, { merge: true }).catch(() => {});
-        setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleaned, { merge: true }).catch(() => {});
+        setDoc(doc(db, catCollection, docTitleId), cleaned, { merge: true }).catch(() => { });
+        setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleaned, { merge: true }).catch(() => { });
       } catch (err) {
         console.warn("Notice syncing local project to Firestore:", updatedP.id, err);
       }
@@ -460,6 +460,7 @@ function mapFirestoreProject(docId: string, data: any): Project {
     views: typeof data.views === "number" ? data.views : 0,
     clientId: data.clientId || "",
     showClientInfo: data.showClientInfo !== undefined ? Boolean(data.showClientInfo) : Boolean(data.clientId),
+    showDescription: data.showDescription !== undefined ? Boolean(data.showDescription) : true,
     allowDownload: Boolean(data.allowDownload),
     downloadCode: data.downloadCode || "",
     createdAt,
@@ -498,7 +499,7 @@ export function addNotification(notification: Omit<Notification, 'id' | 'created
   };
   notifications.unshift(newNotif);
   saveNotifications(notifications);
-  
+
   window.dispatchEvent(new Event('notificationsUpdated'));
   return newNotif;
 }
@@ -517,7 +518,7 @@ export function getYouTubeThumbnail(url: string): string | null {
   if (match && match[2].length === 11) {
     return `https://img.youtube.com/vi/${match[2]}/maxresdefault.jpg`;
   }
-  
+
   const shortsRegExp = /\/shorts\/([a-zA-Z0-9_-]{11})/;
   const shortsMatch = url.match(shortsRegExp);
   if (shortsMatch && shortsMatch[1]) {
@@ -588,7 +589,7 @@ export function saveProjects(projects: Project[]): void {
       }));
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(safeForLocalStorage));
-      } catch {}
+      } catch { }
     }
 
     window.dispatchEvent(new Event("projects-updated"));
@@ -693,7 +694,7 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
             return parseFirestoreRestProject(json);
           }
         }
-      } catch {}
+      } catch { }
       return null;
     };
 
@@ -704,14 +705,14 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
         if (snap.exists()) {
           return mapFirestoreProject(snap.id, snap.data());
         }
-      } catch {}
+      } catch { }
       return null;
     };
 
     // Executa as duas buscas diretas (a que responder primeiro com sucesso ganha)
     const directResult = await Promise.race([
-      fetchDirectRest().then(r => r ? r : new Promise<null>(() => {})),
-      fetchSdk().then(r => r ? r : new Promise<null>(() => {})),
+      fetchDirectRest().then(r => r ? r : new Promise<null>(() => { })),
+      fetchSdk().then(r => r ? r : new Promise<null>(() => { })),
       new Promise<null>(resolve => setTimeout(() => resolve(null), 2500))
     ]);
 
@@ -739,7 +740,7 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
             foundProject = allParsed.find(isMatchingProject) || null;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     if (foundProject && !deletedIds.includes(foundProject.id)) {
@@ -785,7 +786,7 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
   removeDeletedProjectId(id);
 
   const list = getProjects();
-  
+
   // Auto-thumbnail if empty and YouTube URL is provided
   let thumbnail = newProject.thumbnail?.trim();
   if (!thumbnail) {
@@ -810,9 +811,10 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
     visibility,
     updatedAt: now,
     showClientInfo: newProject.showClientInfo !== undefined ? newProject.showClientInfo : Boolean(newProject.clientId),
+    showDescription: newProject.showDescription !== undefined ? newProject.showDescription : Boolean(newProject.description?.trim()),
     createdAt: newProject.createdAt || now,
   };
-  
+
   if (project.images && project.images.length > 0) {
     saveGalleryToIndexedDB(project.id, project.images);
   }
@@ -830,15 +832,15 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
   setDoc(doc(db, "projects", id), cleanedData).catch((error) => {
     console.warn("Aviso ao sincronizar projeto com Firestore:", error?.message || error);
     if (error?.code === 'permission-denied' || error?.message?.includes("insufficient permissions")) {
-      window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-        detail: { collection: "projects", action: "salvar" } 
+      window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+        detail: { collection: "projects", action: "salvar" }
       }));
     }
   });
 
   // Salva também nas coleções categorizadas
-  setDoc(doc(db, catCollection, docTitleId), cleanedData).catch(() => {});
-  setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData).catch(() => {});
+  setDoc(doc(db, catCollection, docTitleId), cleanedData).catch(() => { });
+  setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData).catch(() => { });
 
   // Se houver imagens base64, converte para Firebase Storage em segundo plano e sincroniza
   if ((project.thumbnail && project.thumbnail.startsWith('data:')) || (project.images && project.images.some(img => img.startsWith('data:')))) {
@@ -853,9 +855,9 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
         saveGalleryToIndexedDB(id, updated.images);
       }
       const freshCleaned = cleanFirestoreData(updated);
-      setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => {});
-      setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => {});
-      setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => {});
+      setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => { });
+      setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => { });
+      setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => { });
     });
   }
 
@@ -912,17 +914,17 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
     setDoc(doc(db, "projects", id), cleanedData, { merge: true }).catch((error) => {
       console.warn("Aviso ao atualizar projeto no Firestore:", error?.message || error);
       if (error?.code === 'permission-denied' || error?.message?.includes("insufficient permissions")) {
-        window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-          detail: { collection: "projects", action: "atualizar" } 
+        window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+          detail: { collection: "projects", action: "atualizar" }
         }));
       }
     });
 
     // Atualiza na coleção separada por categoria com o Título
-    setDoc(doc(db, catCollection, docTitleId), cleanedData, { merge: true }).catch(() => {});
+    setDoc(doc(db, catCollection, docTitleId), cleanedData, { merge: true }).catch(() => { });
 
     // Atualiza na coleção hierárquica projetos > categoria > itens
-    setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData, { merge: true }).catch(() => {});
+    setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData, { merge: true }).catch(() => { });
 
     // Se houver imagens base64, converte para Firebase Storage em segundo plano e sincroniza
     if ((updatedItem.thumbnail && updatedItem.thumbnail.startsWith('data:')) || (updatedItem.images && updatedItem.images.some(img => img.startsWith('data:')))) {
@@ -937,9 +939,9 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
           saveGalleryToIndexedDB(id, finalItem.images);
         }
         const freshCleaned = cleanFirestoreData(finalItem);
-        setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => {});
-        setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => {});
-        setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => {});
+        setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => { });
+        setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => { });
+        setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => { });
       });
     }
   }
@@ -984,8 +986,8 @@ export async function deleteProject(id: string): Promise<void> {
     const docTitleId = formatProjectDocId(project.title);
 
     // Exclui das coleções categorizadas
-    deleteDoc(doc(db, catCollection, docTitleId)).catch(() => {});
-    deleteDoc(doc(db, "projetos", catSlug, "itens", docTitleId)).catch(() => {});
+    deleteDoc(doc(db, catCollection, docTitleId)).catch(() => { });
+    deleteDoc(doc(db, "projetos", catSlug, "itens", docTitleId)).catch(() => { });
   }
 
   const filtered = list.filter(p => p.id !== id);
@@ -998,8 +1000,8 @@ export async function deleteProject(id: string): Promise<void> {
   } catch (error: any) {
     console.warn("Aviso ao excluir projeto no Firestore (permissão):", error?.message || error);
     if (error?.code === 'permission-denied' || error?.message?.includes("insufficient permissions")) {
-      window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-        detail: { collection: "projects", action: "excluir" } 
+      window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+        detail: { collection: "projects", action: "excluir" }
       }));
     }
   }
@@ -1008,7 +1010,7 @@ export async function deleteProject(id: string): Promise<void> {
 export function resetProjects(): void {
   try {
     localStorage.removeItem(DELETED_PROJECTS_KEY);
-  } catch {}
+  } catch { }
   clearFictitiousProjects();
   saveProjects([]);
 }
@@ -1071,8 +1073,8 @@ export async function addClient(newClient: Omit<Client, 'id'>): Promise<Client> 
   // Removido para evitar duplicação
 
   if (permissionError) {
-    window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-      detail: { collection: "clientes", action: "salvar" } 
+    window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+      detail: { collection: "clientes", action: "salvar" }
     }));
     throw permissionError;
   }
@@ -1096,8 +1098,8 @@ export function updateClient(id: string, updatedData: Partial<Client>): void {
     setDoc(doc(db, "clientes", id), cleaned, { merge: true }).catch(err => {
       console.warn("Aviso ao atualizar cliente na coleção 'clientes':", err?.message || err);
       if (err?.code === 'permission-denied' || err?.message?.includes("insufficient permissions")) {
-        window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-          detail: { collection: "clientes", action: "atualizar" } 
+        window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+          detail: { collection: "clientes", action: "atualizar" }
         }));
       }
     });
@@ -1113,12 +1115,12 @@ export function deleteClient(id: string): void {
   deleteDoc(doc(db, "clientes", id)).catch(err => {
     console.warn("Aviso ao deletar da coleção 'clientes' no Firestore:", err?.message || err);
     if (err?.code === 'permission-denied' || err?.message?.includes("insufficient permissions")) {
-      window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-        detail: { collection: "clientes", action: "excluir" } 
+      window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+        detail: { collection: "clientes", action: "excluir" }
       }));
     }
   });
-  
+
 }
 
 export async function syncAllToFirestore(): Promise<{ success: boolean; message: string; code?: string }> {
@@ -1136,13 +1138,13 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
     // Testa gravação com documento de conexão
     const testDoc = doc(db, "clientes", "_conn_test");
     await setDoc(testDoc, { ping: true, timestamp: Date.now() });
-    await deleteDoc(testDoc).catch(() => {});
+    await deleteDoc(testDoc).catch(() => { });
 
     // Salva todos os clientes em 'clientes' e 'clients'
     for (const c of clients) {
       const cleaned = cleanFirestoreData(c);
       await setDoc(doc(db, "clientes", c.id), cleaned);
-      
+
     }
 
     // Salva todos os projetos em 'projects', nas coleções categorizadas com o TÍTULO e na árvore hierárquica
@@ -1165,51 +1167,51 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
       // Coleção principal 'projects'
       await setDoc(doc(db, "projects", updatedP.id), cleaned);
       // Coleção categorizada (ex: projetos_imobiliario / CASA_ALPHAVILLE)
-      await setDoc(doc(db, catCol, docTitleId), cleaned).catch(() => {});
+      await setDoc(doc(db, catCol, docTitleId), cleaned).catch(() => { });
       // Coleção hierárquica (projetos > imobiliario > itens > CASA_ALPHAVILLE)
-      await setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleaned).catch(() => {});
+      await setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleaned).catch(() => { });
     }
 
     // Salva notas
     for (const n of notes) {
-      await setDoc(doc(db, "notas", n.id), cleanFirestoreData(n)).catch(() => {});
+      await setDoc(doc(db, "notas", n.id), cleanFirestoreData(n)).catch(() => { });
     }
 
     // Salva arquivos
     for (const f of files) {
-      await setDoc(doc(db, "arquivos", f.id), cleanFirestoreData(f)).catch(() => {});
+      await setDoc(doc(db, "arquivos", f.id), cleanFirestoreData(f)).catch(() => { });
     }
 
     // Salva conversas
     for (const cv of conversations) {
-      await setDoc(doc(db, "conversas", cv.id), cleanFirestoreData(cv)).catch(() => {});
+      await setDoc(doc(db, "conversas", cv.id), cleanFirestoreData(cv)).catch(() => { });
     }
 
     // Salva emails
     for (const em of emails) {
-      await setDoc(doc(db, "emails", em.id), cleanFirestoreData(em)).catch(() => {});
+      await setDoc(doc(db, "emails", em.id), cleanFirestoreData(em)).catch(() => { });
     }
 
     // Salva calendário
     for (const ev of calendarEvents) {
-      await setDoc(doc(db, "calendario", ev.id), cleanFirestoreData(ev)).catch(() => {});
+      await setDoc(doc(db, "calendario", ev.id), cleanFirestoreData(ev)).catch(() => { });
     }
 
     // Salva base de conhecimento
     for (const kb of knowledgeArticles) {
-      await setDoc(doc(db, "base_conhecimento", kb.id), cleanFirestoreData(kb)).catch(() => {});
+      await setDoc(doc(db, "base_conhecimento", kb.id), cleanFirestoreData(kb)).catch(() => { });
     }
 
     // Salva mensagens / leads
     for (const l of leads) {
-      await setDoc(doc(db, "mensagens", l.id), cleanFirestoreData(l)).catch(() => {});
-      await setDoc(doc(db, "leads", l.id), cleanFirestoreData(l)).catch(() => {});
+      await setDoc(doc(db, "mensagens", l.id), cleanFirestoreData(l)).catch(() => { });
+      await setDoc(doc(db, "leads", l.id), cleanFirestoreData(l)).catch(() => { });
     }
 
     // Salva transações financeiras (Coleção: 'financial_transactions')
     const financialTransactions = getFinancialTransactions();
     for (const tx of financialTransactions) {
-      await setDoc(doc(db, "financial_transactions", tx.id), cleanFirestoreData(tx)).catch(() => {});
+      await setDoc(doc(db, "financial_transactions", tx.id), cleanFirestoreData(tx)).catch(() => { });
     }
 
     // Salva configurações de exibição da homepage
@@ -1217,7 +1219,7 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
     await setDoc(doc(db, "configuracoes", "homepage_categorias"), {
       categories: homepageCats,
       updatedAt: new Date().toISOString()
-    }).catch(() => {});
+    }).catch(() => { });
 
     return {
       success: true,
@@ -1226,8 +1228,8 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
   } catch (err: any) {
     console.error("Erro na sincronização completa:", err);
     if (err?.code === 'permission-denied' || err?.message?.includes("insufficient permissions")) {
-      window.dispatchEvent(new CustomEvent("firestore-permission-error", { 
-        detail: { collection: "geral", action: "sincronizar" } 
+      window.dispatchEvent(new CustomEvent("firestore-permission-error", {
+        detail: { collection: "geral", action: "sincronizar" }
       }));
       return {
         success: false,
@@ -1245,7 +1247,7 @@ export async function syncAllToFirestore(): Promise<{ success: boolean; message:
 export function resetClients(): void {
   try {
     localStorage.removeItem(DELETED_CLIENTS_KEY);
-  } catch {}
+  } catch { }
   clearFictitiousClients();
   saveClients([]);
 }
@@ -1381,8 +1383,8 @@ export function updateLeadStatus(id: string, status: 'novo' | 'respondido' | 'ar
   if (index !== -1) {
     list[index].status = status;
     saveLeads(list);
-    setDoc(doc(db, "leads", id), { status }, { merge: true }).catch(() => {});
-    setDoc(doc(db, "mensagens", id), { status }, { merge: true }).catch(() => {});
+    setDoc(doc(db, "leads", id), { status }, { merge: true }).catch(() => { });
+    setDoc(doc(db, "mensagens", id), { status }, { merge: true }).catch(() => { });
   }
 }
 
@@ -1446,7 +1448,7 @@ export function updateNote(id: string, updatedData: Partial<Note>): void {
       updatedAt: new Date().toISOString()
     };
     saveNotes(list);
-    setDoc(doc(db, "notas", id), cleanFirestoreData(list[idx]), { merge: true }).catch(() => {});
+    setDoc(doc(db, "notas", id), cleanFirestoreData(list[idx]), { merge: true }).catch(() => { });
   }
 }
 
@@ -1454,7 +1456,7 @@ export function deleteNote(id: string): void {
   const list = getNotes();
   const filtered = list.filter(n => n.id !== id);
   saveNotes(filtered);
-  deleteDoc(doc(db, "notas", id)).catch(() => {});
+  deleteDoc(doc(db, "notas", id)).catch(() => { });
 }
 
 // -------------------------------------------------------------
@@ -1505,7 +1507,7 @@ export function deleteFile(id: string): void {
   const list = getFiles();
   const filtered = list.filter(f => f.id !== id);
   saveFiles(filtered);
-  deleteDoc(doc(db, "arquivos", id)).catch(() => {});
+  deleteDoc(doc(db, "arquivos", id)).catch(() => { });
 }
 
 // -------------------------------------------------------------
@@ -1554,7 +1556,7 @@ export function addMessageToConversation(conversationId: string, text: string, i
     if (!isMe) list[idx].unreadCount += 1;
     saveConversations(list);
 
-    setDoc(doc(db, "conversas", conversationId), cleanFirestoreData(list[idx]), { merge: true }).catch(() => {});
+    setDoc(doc(db, "conversas", conversationId), cleanFirestoreData(list[idx]), { merge: true }).catch(() => { });
   }
 }
 
@@ -1579,7 +1581,7 @@ export function createConversation(clientName: string, projectName?: string, ini
   };
   list.unshift(conv);
   saveConversations(list);
-  setDoc(doc(db, "conversas", id), cleanFirestoreData(conv)).catch(() => {});
+  setDoc(doc(db, "conversas", id), cleanFirestoreData(conv)).catch(() => { });
   return conv;
 }
 
@@ -1620,7 +1622,7 @@ export function sendEmail(email: Omit<EmailItem, 'id' | 'date'>): EmailItem {
   };
   list.unshift(item);
   saveEmails(list);
-  setDoc(doc(db, "emails", id), cleanFirestoreData(item)).catch(() => {});
+  setDoc(doc(db, "emails", id), cleanFirestoreData(item)).catch(() => { });
   return item;
 }
 
@@ -1666,7 +1668,7 @@ export function addCalendarEvent(newEvent: Omit<CalendarEvent, 'id'>): CalendarE
   // Sort by date
   list.sort((a, b) => a.date.localeCompare(b.date));
   saveCalendarEvents(list);
-  setDoc(doc(db, "calendario", id), cleanFirestoreData(event)).catch(() => {});
+  setDoc(doc(db, "calendario", id), cleanFirestoreData(event)).catch(() => { });
   return event;
 }
 
@@ -1676,7 +1678,7 @@ export function updateCalendarEvent(id: string, updated: Partial<CalendarEvent>)
   if (idx !== -1) {
     list[idx] = { ...list[idx], ...updated };
     saveCalendarEvents(list);
-    setDoc(doc(db, "calendario", id), cleanFirestoreData(list[idx]), { merge: true }).catch(() => {});
+    setDoc(doc(db, "calendario", id), cleanFirestoreData(list[idx]), { merge: true }).catch(() => { });
   }
 }
 
@@ -1684,7 +1686,7 @@ export function deleteCalendarEvent(id: string): void {
   const list = getCalendarEvents();
   const filtered = list.filter(e => e.id !== id);
   saveCalendarEvents(filtered);
-  deleteDoc(doc(db, "calendario", id)).catch(() => {});
+  deleteDoc(doc(db, "calendario", id)).catch(() => { });
 }
 
 // -------------------------------------------------------------
@@ -1723,14 +1725,14 @@ export function addKnowledgeArticle(newArticle: Omit<KnowledgeArticle, 'id'>): K
   };
   list.unshift(article);
   saveKnowledgeArticles(list);
-  setDoc(doc(db, "base_conhecimento", id), cleanFirestoreData(article)).catch(() => {});
+  setDoc(doc(db, "base_conhecimento", id), cleanFirestoreData(article)).catch(() => { });
   return article;
 }
 
 export function deleteKnowledgeArticle(id: string): void {
   const list = getKnowledgeArticles().filter(a => a.id !== id);
   saveKnowledgeArticles(list);
-  deleteDoc(doc(db, "base_conhecimento", id)).catch(() => {});
+  deleteDoc(doc(db, "base_conhecimento", id)).catch(() => { });
 }
 
 // -------------------------------------------------------------
@@ -1772,7 +1774,7 @@ export function addSupportTicket(newTicket: Omit<SupportTicket, 'id' | 'createdA
   };
   list.unshift(ticket);
   saveSupportTickets(list);
-  setDoc(doc(db, "suporte", id), cleanFirestoreData(ticket)).catch(() => {});
+  setDoc(doc(db, "suporte", id), cleanFirestoreData(ticket)).catch(() => { });
   return ticket;
 }
 
@@ -1888,7 +1890,7 @@ if (typeof window !== "undefined") {
           .filter(docSnap => !deletedIds.includes(docSnap.id) && !FICTITIOUS_PROJECT_IDS.has(docSnap.id.toLowerCase()))
           .map(docSnap => mapFirestoreProject(docSnap.id, docSnap.data()))
           .filter(p => !isFictitiousProject(p));
-        
+
         // Preserva imagens, favoritos e visibilidade locais para que dados recém-salvos nunca sejam apagados por snapshot do Firestore
         const visibilities = getProjectVisibilities();
         const favorites = getProjectFavorites();
@@ -1940,7 +1942,7 @@ if (typeof window !== "undefined") {
 
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedProjects));
-        } catch {}
+        } catch { }
         window.dispatchEvent(new Event("projects-updated"));
       }
     }, (error) => {
@@ -1960,9 +1962,9 @@ if (typeof window !== "undefined") {
           if (isFictitiousClient({ id: d.id, name: data.name })) {
             addDeletedClientId(d.id);
             try {
-              deleteDoc(doc(db, "clientes", d.id)).catch(() => {});
-              deleteDoc(doc(db, "clients", d.id)).catch(() => {});
-            } catch {}
+              deleteDoc(doc(db, "clientes", d.id)).catch(() => { });
+              deleteDoc(doc(db, "clients", d.id)).catch(() => { });
+            } catch { }
           }
         });
 
@@ -1976,9 +1978,9 @@ if (typeof window !== "undefined") {
     }, (error) => {
       console.warn("Firestore snapshot clientes listener:", error.message);
     });
-  } catch (err) {}
+  } catch (err) { }
 
-  
+
 
   // 3. Evaluations listener
   try {
@@ -1991,7 +1993,7 @@ if (typeof window !== "undefined") {
     }, (error) => {
       console.warn("Firestore snapshot evaluations listener:", error.message);
     });
-  } catch (err) {}
+  } catch (err) { }
 
   // 4. Leads / Mensagens listener
   try {
@@ -2004,7 +2006,7 @@ if (typeof window !== "undefined") {
     }, (error) => {
       console.warn("Firestore snapshot leads listener:", error.message);
     });
-  } catch (err) {}
+  } catch (err) { }
 
   // 5. Notas listener
   try {
@@ -2014,8 +2016,8 @@ if (typeof window !== "undefined") {
         localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(list));
         window.dispatchEvent(new Event("notes-updated"));
       }
-    }, () => {});
-  } catch (err) {}
+    }, () => { });
+  } catch (err) { }
 
   // 6. Arquivos listener
   try {
@@ -2025,8 +2027,8 @@ if (typeof window !== "undefined") {
         localStorage.setItem(FILES_STORAGE_KEY, JSON.stringify(list));
         window.dispatchEvent(new Event("files-updated"));
       }
-    }, () => {});
-  } catch (err) {}
+    }, () => { });
+  } catch (err) { }
 
   // 7. Conversas listener
   try {
@@ -2036,8 +2038,8 @@ if (typeof window !== "undefined") {
         localStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(list));
         window.dispatchEvent(new Event("conversations-updated"));
       }
-    }, () => {});
-  } catch (err) {}
+    }, () => { });
+  } catch (err) { }
 
   // 8. Calendário listener
   try {
@@ -2047,8 +2049,8 @@ if (typeof window !== "undefined") {
         localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(list));
         window.dispatchEvent(new Event("calendar-updated"));
       }
-    }, () => {});
-  } catch (err) {}
+    }, () => { });
+  } catch (err) { }
 
   // 9. Configurações de Categorias da Homepage listener
   try {
@@ -2060,8 +2062,8 @@ if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent('homepage-categories-updated', { detail: data.categories }));
         }
       }
-    }, () => {});
-  } catch (err) {}
+    }, () => { });
+  } catch (err) { }
 
   // 10. Financial Transactions listener (Coleção: 'financial_transactions')
   try {
@@ -2071,8 +2073,8 @@ if (typeof window !== "undefined") {
         localStorage.setItem(FINANCIAL_STORAGE_KEY, JSON.stringify(list));
         window.dispatchEvent(new Event("financial-updated"));
       }
-    }, () => {});
-  } catch (err) {}
+    }, () => { });
+  } catch (err) { }
 }
 
 export const HOMEPAGE_CATEGORIES_KEY = "danivaleweb_homepage_categories";
@@ -2125,7 +2127,7 @@ export function getHomepageCategories(): HomepageCategoryConfig[] {
         stored = parsed;
       }
     }
-  } catch {}
+  } catch { }
 
   // Se não tem nada salvo, inicia com as categorias padrão
   if (stored.length === 0) {
@@ -2144,7 +2146,7 @@ export function getHomepageCategories(): HomepageCategoryConfig[] {
   try {
     const projects = getProjects();
     const existingNames = new Set(stored.map(c => c.name.toLowerCase()));
-    
+
     projects.forEach(p => {
       if (p.category && !existingNames.has(p.category.toLowerCase())) {
         const id = p.category.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -2158,7 +2160,7 @@ export function getHomepageCategories(): HomepageCategoryConfig[] {
         existingNames.add(p.category.toLowerCase());
       }
     });
-  } catch {}
+  } catch { }
 
   return stored;
 }
@@ -2179,7 +2181,7 @@ export function saveHomepageCategories(categories: HomepageCategoryConfig[]): vo
     }).catch(err => {
       console.warn("Aviso ao salvar categorias da homepage no Firestore:", err?.message || err);
     });
-  } catch {}
+  } catch { }
 }
 
 export function toggleHomepageCategoryVisibility(categoryId: string): HomepageCategoryConfig[] {
