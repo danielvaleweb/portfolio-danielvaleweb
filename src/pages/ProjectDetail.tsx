@@ -1275,7 +1275,7 @@ export default function ProjectDetail() {
       {isPhotoProject ? (
         /* ==================== LAYOUT DE FOTOS (FULL-WIDTH 3 POR LINHA) ==================== */
         <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-6 md:px-8 pt-28 md:pt-32 relative z-10">
-          {/* Top Bar: Voltar */}
+          {/* Top Bar: Voltar e Ações (Download e Compartilhar) */}
           <div className="flex items-center justify-between gap-4 mb-6">
             <button
               onClick={() => {
@@ -1293,6 +1293,16 @@ export default function ProjectDetail() {
               </span>
               Voltar
             </button>
+
+            {/* Botões de Download e Compartilhar */}
+            <div className="flex items-center gap-3 relative z-20">
+              {project.allowDownload !== false && (
+                <div className="w-[170px] sm:w-[240px]">
+                  {renderDownloadButton()}
+                </div>
+              )}
+              {renderShareButton()}
+            </div>
           </div>
 
           {/* Hero Title Area (Aparece apenas quando houver título adicionado) */}

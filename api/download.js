@@ -41,7 +41,13 @@ export default function handler(req, res) {
       }
     } catch {}
   }
-  if (!rawName) rawName = 'video.mp4';
+  if (!rawName) {
+    if (targetUrl.includes('.jpg') || targetUrl.includes('.jpeg')) rawName = 'foto.jpg';
+    else if (targetUrl.includes('.png')) rawName = 'foto.png';
+    else if (targetUrl.includes('.webp')) rawName = 'foto.webp';
+    else if (targetUrl.includes('.zip')) rawName = 'arquivo.zip';
+    else rawName = 'video.mp4';
+  }
 
   const cleanFileName = rawName
     .replace(/[/\\?%*:|"<>]/g, '_')
@@ -70,7 +76,17 @@ export default function handler(req, res) {
         return res.status(upstreamRes.statusCode || 500).send(`Failed to fetch from storage source: HTTP ${upstreamRes.statusCode}`);
       }
 
-      const contentType = upstreamRes.headers['content-type'] || 'video/mp4';
+      let contentType = upstreamRes.headers['content-type'];
+      const ext = cleanFileName.split('.').pop()?.toLowerCase();
+      if (!contentType || contentType === 'application/octet-stream' || contentType === 'video/mp4') {
+        if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
+        else if (ext === 'png') contentType = 'image/png';
+        else if (ext === 'webp') contentType = 'image/webp';
+        else if (ext === 'zip') contentType = 'application/zip';
+        else if (ext === 'mp4') contentType = 'video/mp4';
+        else if (!contentType) contentType = 'application/octet-stream';
+      }
+
       const contentLength = upstreamRes.headers['content-length'];
 
       // Headers para FORÇAR o download nativo sem abrir player de vídeo

@@ -171,6 +171,20 @@ export async function triggerDownload(
 ): Promise<void> {
   if (!rawUrl) return;
 
+  // Se for dados base64 ou blob já gerado localmente
+  if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    const a = document.createElement('a');
+    a.href = rawUrl;
+    a.download = suggestedFilename || 'arquivo';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 2000);
+    return;
+  }
+
   const info = parseDownloadUrl(rawUrl);
 
   // Se for pasta do Google Drive: abre em nova aba
@@ -179,29 +193,51 @@ export async function triggerDownload(
     return;
   }
 
-  // 1. Firebase Storage (Download Direto 100% Garantido via Blob Local ou /api/download)
-  // Fazemos o fetch dos bytes do arquivo e geramos uma URL de blob local (mesma origem).
-  // URLs blob locais NUNCA abrem player de vídeo e FORÇAM o download direto no PC e Mobile.
-  if (info.type === 'firebase') {
-    const cleanName = suggestedFilename || info.fileName || 'producao_original.mp4';
-    const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(cleanName)}`;
+  // Detecção precisa de mobile (iPhone, iPad, iPod, Android)
+  const isMobile = typeof navigator !== 'undefined' && (
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+    (typeof navigator.platform === 'string' && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
 
+  // 1. Firebase Storage (Download Direto 100% Garantido no iPhone e Desktop)
+  if (info.type === 'firebase') {
+    const cleanName = suggestedFilename || info.fileName || 'arquivo_alta_resolucao.mp4';
+    let directUrl = info.url;
+    if (!directUrl.includes('response-content-disposition')) {
+      const sep = directUrl.includes('?') ? '&' : '?';
+      directUrl += `${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanName)}"`;
+    }
+
+    if (isMobile) {
+      // No Mobile (iOS Safari / iPhone / iPad / Android): navega direto para a URL com cabeçalho de anexo.
+      // O iOS Safari aciona a folha/notificação nativa de download ("Deseja baixar...?") salvando no Arquivos/Downloads
+      // sem abrir telas em branco ou ser bloqueado pelo WebKit.
+      if (onProgress) {
+        onProgress(30);
+        await new Promise((r) => setTimeout(r, 120));
+        onProgress(75);
+        await new Promise((r) => setTimeout(r, 120));
+        onProgress(100);
+      }
+      window.location.assign(directUrl);
+      return;
+    }
+
+    // No Desktop: tenta streaming com progresso real via Blob, com fallback para rota /api/download ou link direto
+    const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(cleanName)}`;
     try {
-      // 1. Tenta direto na URL do Firebase (se CORS estiver ativo no bucket)
       await streamFetchBlob(info.url, cleanName, onProgress);
       return;
     } catch (corsErr) {
       console.warn('Fetch direto no Firebase bloqueado por CORS, usando rota local /api/download com streaming e progresso:', corsErr);
       try {
-        // 2. Tenta via /api/download (mesma origem na Vercel, sem bloqueio de CORS e com progresso em tempo real)
         await streamFetchBlob(proxyUrl, cleanName, onProgress);
         return;
       } catch (proxyErr) {
         console.warn('Fallback para navegação da rota de download:', proxyErr);
-        // 3. Fallback garantido: link direto na rota de download que força o Content-Disposition
         if (onProgress) onProgress(100);
         const a = document.createElement('a');
-        a.href = proxyUrl;
+        a.href = directUrl;
         a.setAttribute('download', cleanName);
         a.style.display = 'none';
         document.body.appendChild(a);
@@ -213,8 +249,6 @@ export async function triggerDownload(
       }
     }
   }
-
-  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // 2. Google Drive / Dropbox
   if (info.type === 'google-drive-file' || info.type === 'dropbox') {
@@ -242,7 +276,24 @@ export async function triggerDownload(
     return;
   }
 
-  // 3. Outros arquivos diretos (tentativa via blob)
+  // 3. Outros arquivos diretos (imagens, vídeos, etc.)
+  if (isMobile) {
+    if (onProgress) {
+      onProgress(30);
+      await new Promise((r) => setTimeout(r, 120));
+      onProgress(75);
+      await new Promise((r) => setTimeout(r, 120));
+      onProgress(100);
+    }
+    const isImg = info.url.includes('.jpg') || info.url.includes('.jpeg') || info.url.includes('.png') || info.url.includes('.webp');
+    const defaultName = isImg ? 'foto.jpg' : 'arquivo.mp4';
+    const fallbackName = suggestedFilename || defaultName;
+    const proxyUrl = `/api/download?url=${encodeURIComponent(info.url)}&name=${encodeURIComponent(fallbackName)}`;
+    window.location.assign(proxyUrl);
+    return;
+  }
+
+  // No PC: tentativa via fetch/blob
   try {
     const res = await fetch(info.url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
