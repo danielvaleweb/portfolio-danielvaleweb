@@ -348,43 +348,53 @@ export default function ProjectDetail() {
         return false;
       };
 
-      // 1. Tenta carregar do cache local imediatamente (0ms)
+      // 1. Tenta carregar do cache local imediatamente (0ms) para exibição instantânea
       const allProjects = getProjects();
       const localFound = allProjects.find(matchProject);
       if (localFound) {
         applyFoundProject(localFound);
-        return;
+      } else {
+        setIsLoading(true);
       }
 
-      // 2. Não encontrado localmente (primeiro acesso via link do WhatsApp no celular):
-      // Mantém estado de carregamento REC e faz busca direta ultra rápida no Firestore (REST + SDK)
-      setIsLoading(true);
+      // 2. Busca direta no Firestore em segundo plano (ou foreground se não houver cache local):
+      // Garante que links de vídeo, fotos ou arquivos atualizados sejam refletidos sem exigir limpeza de cache
       try {
-        const remoteFound = await fetchProjectById(cleanId);
+        const remoteFound = await fetchProjectById(cleanId, true);
         if (isCancelled) return;
         if (remoteFound) {
-          applyFoundProject(remoteFound);
+          if (!localFound ||
+              (remoteFound.updatedAt && (!localFound.updatedAt || remoteFound.updatedAt > localFound.updatedAt)) ||
+              remoteFound.videoUrl !== localFound.videoUrl ||
+              remoteFound.thumbnail !== localFound.thumbnail ||
+              remoteFound.downloadUrl !== localFound.downloadUrl ||
+              remoteFound.title !== localFound.title ||
+              JSON.stringify(remoteFound.images || []) !== JSON.stringify(localFound.images || [])) {
+            applyFoundProject(remoteFound);
+          }
           return;
         }
       } catch (err) {
         console.warn("Notice checking remote project:", err);
       }
 
-      // 3. Fallback: aguarda sincronização em segundo plano antes de concluir que não existe
-      const timer = setTimeout(() => {
-        if (!isCancelled) {
-          const recheck = getProjects().find(matchProject);
-          if (recheck) {
-            applyFoundProject(recheck);
-          } else {
-            setIsLoading(false);
-            setProject(null);
-            setClient(null);
+      // 3. Fallback: se não encontrado e ainda carregando, aguarda sincronização em segundo plano
+      if (!localFound) {
+        const timer = setTimeout(() => {
+          if (!isCancelled) {
+            const recheck = getProjects().find(matchProject);
+            if (recheck) {
+              applyFoundProject(recheck);
+            } else {
+              setIsLoading(false);
+              setProject(null);
+              setClient(null);
+            }
           }
-        }
-      }, 5000);
+        }, 5000);
 
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      }
     };
 
     loadProjectAndClient();

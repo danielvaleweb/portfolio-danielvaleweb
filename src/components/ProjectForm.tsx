@@ -1,4 +1,4 @@
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL, listAll } from "firebase/storage";
 import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
@@ -132,22 +132,60 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     return () => window.removeEventListener("clients-updated", updateClients);
   }, []);
 
-  // Mantém formData sincronizado se o projeto mudar e recupera fotos do IndexedDB
+  const [uploadSuccessToast, setUploadSuccessToast] = useState<string | null>(null);
+  const initialProjectIdRef = useRef(project?.id);
+
+  // Mantém formData sincronizado apenas quando um projeto diferente for selecionado
   useEffect(() => {
-    if (project) {
-      setFormData(prev => ({
-        ...prev,
+    if (project && project.id !== initialProjectIdRef.current) {
+      initialProjectIdRef.current = project.id;
+      setFormData({
         ...project,
+        storageFolder: project.storageFolder || getProjectStorageFolder(project.id, project.title),
         showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
         showDescription: project.showDescription !== undefined ? project.showDescription : true,
-        images: (project.images && project.images.length > 0) ? project.images : (prev.images || [])
-      }));
+        images: (project.images && project.images.length > 0) ? project.images : []
+      });
       const existingTx = getProjectFinancialTransaction(project.id);
       if (existingTx) {
         setPaymentStatus(existingTx.status);
       }
     }
   }, [project]);
+
+  // Sincroniza automaticamente se houver arquivo mais recente já enviado para a pasta do projeto
+  useEffect(() => {
+    if (!project?.id || !projectFolder) return;
+    let isCancelled = false;
+
+    const syncLatestFolderMedia = async () => {
+      try {
+        const folderRef = ref(storage, projectFolder);
+        const res = await listAll(folderRef);
+        const videoItems = res.items.filter(item => item.name.startsWith('video_'));
+        if (videoItems.length > 0) {
+          videoItems.sort((a, b) => b.name.localeCompare(a.name));
+          const latestVideo = videoItems[0];
+          
+          const currentUrl = formData.videoUrl || project.videoUrl || '';
+          if (!currentUrl.includes(latestVideo.name)) {
+            const newUrl = await getDownloadURL(latestVideo);
+            if (!isCancelled) {
+              setFormData(prev => ({ ...prev, videoUrl: newUrl, storageFolder: projectFolder }));
+              updateProject(project.id, { videoUrl: newUrl, storageFolder: projectFolder });
+              setUploadSuccessToast('Vídeo recente detectado na pasta do projeto e atualizado no site!');
+              setTimeout(() => setUploadSuccessToast(null), 4500);
+            }
+          }
+        }
+      } catch (err) {
+        // Silencioso se pasta vazia ou inacessível
+      }
+    };
+
+    syncLatestFolderMedia();
+    return () => { isCancelled = true; };
+  }, [project?.id, projectFolder]);
 
   useEffect(() => {
     if (project?.id) {
@@ -392,6 +430,34 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             finalUrl = `${downloadURL}${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanFileName)}"`;
           }
           setFormData((prev) => ({ ...prev, [fieldName]: finalUrl, storageFolder: projectFolder }));
+
+          // Persiste imediatamente no projeto existente (Firestore + LocalStorage + metadata do Storage)
+          if (project?.id) {
+            updateProject(project.id, {
+              [fieldName]: finalUrl,
+              storageFolder: projectFolder
+            });
+            saveProjectMetadataToStorage({
+              ...formData,
+              ...project,
+              id: project.id,
+              [fieldName]: finalUrl,
+              storageFolder: projectFolder
+            } as Project).catch(() => {});
+          }
+
+          const fieldLabels: Record<string, string> = {
+            videoUrl: 'Vídeo',
+            thumbnail: 'Capa',
+            downloadUrl: 'Arquivo de download'
+          };
+          setUploadSuccessToast(`${fieldLabels[fieldName] || 'Arquivo'} salvo com sucesso na pasta do projeto e atualizado no site!`);
+          setTimeout(() => setUploadSuccessToast(null), 4500);
+
+          if (fieldName === 'videoUrl' && videoInputRef.current) videoInputRef.current.value = '';
+          if (fieldName === 'thumbnail' && thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+          if (fieldName === 'downloadUrl' && fileInputRef.current) fileInputRef.current.value = '';
+
           setUploading(null);
         });
       }
@@ -479,13 +545,19 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
         description: formData.description?.trim() || '',
       };
 
-      if (project?.id && finalImages.length > 0) {
-        saveGalleryToIndexedDB(project.id, finalImages);
+      if (project?.id) {
+        if (finalImages.length > 0) {
+          saveGalleryToIndexedDB(project.id, finalImages);
+        }
         updateProject(project.id, { 
+          ...finalData,
           images: finalImages, 
           isPhotoGallery: isPhoto,
           thumbnail: finalData.thumbnail,
           title: cleanTitle,
+          videoUrl: finalData.videoUrl,
+          downloadUrl: finalData.downloadUrl,
+          description: finalData.description,
           storageFolder: projectFolder,
         });
       }
@@ -523,6 +595,13 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           </h2>
         </div>
       </div>
+
+      {uploadSuccessToast && (
+        <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-3 text-sm font-medium animate-fadeIn">
+          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+          <span>{uploadSuccessToast}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

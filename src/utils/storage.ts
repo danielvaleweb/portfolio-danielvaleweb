@@ -454,6 +454,8 @@ function mapFirestoreProject(docId: string, data: any): Project {
     videoUrl: data.videoUrl || data.trailerUrl || "",
     description: data.description || data.synopsis || "",
     downloadUrl: data.downloadUrl || "",
+    storageFolder: data.storageFolder || "",
+    price: typeof data.price === 'number' ? data.price : undefined,
     isPhotoGallery: Boolean(data.isPhotoGallery),
     images: Array.isArray(data.images) ? data.images : [],
     tags: Array.isArray(data.tags) ? data.tags : [],
@@ -667,7 +669,7 @@ function parseFirestoreRestProject(docData: any): Project {
  * 2. Se não encontrar (primeiro acesso via link do WhatsApp no celular), faz busca paralela REST + SDK Firestore
  * 3. Garante que projetos com visibility === 'unlisted' sejam carregados com sucesso
  */
-export async function fetchProjectById(id: string): Promise<Project | null> {
+export async function fetchProjectById(id: string, forceRemote = false): Promise<Project | null> {
   if (!id) return null;
   const cleanId = decodeURIComponent(id).trim();
   const deletedIds = getDeletedProjectIds();
@@ -690,10 +692,12 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
     return false;
   };
 
-  // 1. Tenta localmente primeiro
+  // 1. Tenta localmente primeiro se forceRemote não estiver habilitado
   const localList = getProjects();
-  const local = localList.find(isMatchingProject);
-  if (local) return local;
+  if (!forceRemote) {
+    const local = localList.find(isMatchingProject);
+    if (local) return local;
+  }
 
   // 2. Busca direta no Firestore em alta velocidade (SDK + REST API em paralelo)
   try {
@@ -2050,6 +2054,12 @@ if (typeof window !== "undefined") {
             }
             if (lp.isFavorite !== undefined && fp.isFavorite === undefined) {
               item.isFavorite = lp.isFavorite;
+            }
+            if (lp.storageFolder && !item.storageFolder) {
+              item.storageFolder = lp.storageFolder;
+            }
+            if (lp.price !== undefined && item.price === undefined) {
+              item.price = lp.price;
             }
           }
           // Prioridade garantida à visibilidade explícita salva localmente

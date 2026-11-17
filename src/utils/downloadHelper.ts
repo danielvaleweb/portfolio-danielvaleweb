@@ -31,8 +31,8 @@ export function parseDownloadUrl(rawUrl: string): DownloadUrlInfo {
         const decoded = decodeURIComponent(match[1]);
         const parts = decoded.split('/');
         extractedName = parts[parts.length - 1];
-        // Remove prefixo timestamp ex: 1731234567_
-        extractedName = extractedName.replace(/^\d+_/, '');
+        // Remove prefixo de upload ex: video_1731234567_ ou 1731234567_
+        extractedName = extractedName.replace(/^(?:video|thumb|download)_\d+_|^\d+_/, '');
       }
     } catch {}
 

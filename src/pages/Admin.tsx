@@ -524,8 +524,8 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
               <EyeOff size={9} /> Não listado
             </span>
           ) : (
-            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-[#14532d]/60 dark:text-[#4ade80] dark:border-[#166534] text-[9.5px] font-semibold transition-colors">
-              {'Done'}
+            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-[#14532d]/60 dark:text-[#4ade80] dark:border-[#166534] text-[9.5px] font-semibold transition-colors flex items-center gap-1">
+              <Globe size={9} /> Público
             </span>
           )}
         </div>
@@ -1332,7 +1332,13 @@ export default function Admin() {
     setRealProjects(getProjects());
 
     const handleUpdate = () => {
-      setRealProjects(getProjects());
+      const list = getProjects();
+      setRealProjects(list);
+      setEditingProject(prev => {
+        if (!prev) return null;
+        const fresh = list.find(p => p.id === prev.id);
+        return fresh || prev;
+      });
     };
 
     const handleFirestoreError = () => {
