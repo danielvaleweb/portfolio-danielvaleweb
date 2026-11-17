@@ -18,10 +18,10 @@ import {
   HomepageCategoryConfig,
   FinancialTransaction
 } from "../types";
-import { ref as storageRef, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as storageRef, deleteObject, uploadBytes, getDownloadURL, listAll } from "firebase/storage";
 import { storage, db } from "../firebase";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from "firebase/firestore";
-import { saveGalleryToIndexedDB, getGalleryFromIndexedDB, dataUrlToBlob } from "./imageStorage";
+import { saveGalleryToIndexedDB, getGalleryFromIndexedDB, deleteGalleryFromIndexedDB, dataUrlToBlob } from "./imageStorage";
 
 const STORAGE_KEY = "daniel_vale_projects";
 const DELETED_PROJECTS_KEY = "daniel_vale_deleted_project_ids";
@@ -300,7 +300,8 @@ export async function uploadDataUrlToStorage(dataUrl: string, pathPrefix = "proj
     const blob = dataUrlToBlob(dataUrl);
     const ext = dataUrl.includes("image/png") ? "png" : "jpg";
     const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const fileRef = storageRef(storage, `${pathPrefix}_${filename}`);
+    const cleanPrefix = pathPrefix.replace(/\/+$/, '');
+    const fileRef = storageRef(storage, `${cleanPrefix}/${filename}`);
     await uploadBytes(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
     const downloadUrl = await getDownloadURL(fileRef);
     return downloadUrl;
@@ -313,10 +314,12 @@ export async function uploadDataUrlToStorage(dataUrl: string, pathPrefix = "proj
 export async function uploadProjectImagesToStorage(project: Project): Promise<Project> {
   let updated = { ...project };
   let hasChanges = false;
+  const folder = project.storageFolder || getProjectStorageFolder(project.id, project.title);
+  updated.storageFolder = folder;
 
   if (updated.thumbnail && updated.thumbnail.startsWith('data:')) {
     try {
-      const url = await uploadDataUrlToStorage(updated.thumbnail, 'projects/thumbs');
+      const url = await uploadDataUrlToStorage(updated.thumbnail, `${folder}/thumbs`);
       if (url && !url.startsWith('data:')) {
         updated.thumbnail = url;
         hasChanges = true;
@@ -329,7 +332,7 @@ export async function uploadProjectImagesToStorage(project: Project): Promise<Pr
     for (const img of updated.images) {
       if (img.startsWith('data:')) {
         try {
-          const url = await uploadDataUrlToStorage(img, 'projects/gallery');
+          const url = await uploadDataUrlToStorage(img, `${folder}/gallery`);
           newImages.push(url);
           hasChanges = true;
         } catch {
@@ -619,6 +622,15 @@ export function toProjectSlug(str?: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+export function getProjectStorageFolder(projectId: string, title?: string, existingFolder?: string): string {
+  if (existingFolder && existingFolder.trim()) {
+    return existingFolder.trim().replace(/^\/+|\/+$/g, '');
+  }
+  const cleanId = (projectId || Date.now().toString()).trim();
+  const slug = toProjectSlug(title);
+  return slug ? `projects/${slug}_${cleanId}` : `projects/${cleanId}`;
+}
+
 function parseFirestoreRestValue(val: any): any {
   if (!val) return undefined;
   if ('stringValue' in val) return val.stringValue;
@@ -780,9 +792,9 @@ export function getCategorySlug(category?: string): 'imobiliario' | 'publicidade
   return "imobiliario";
 }
 
-export function addProject(newProject: Omit<Project, 'id'>): Project {
+export function addProject(newProject: Omit<Project, 'id'> & { id?: string }): Project {
   const now = Date.now();
-  const id = now.toString();
+  const id = newProject.id || now.toString();
   removeDeletedProjectId(id);
 
   const list = getProjects();
@@ -803,12 +815,15 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
   const visibility = newProject.visibility === 'unlisted' ? 'unlisted' : 'public';
   setProjectVisibility(id, visibility);
 
+  const storageFolder = newProject.storageFolder || getProjectStorageFolder(id, newProject.title);
+
   const project: Project = {
     ...newProject,
     id,
     thumbnail,
     downloadCode,
     visibility,
+    storageFolder,
     updatedAt: now,
     showClientInfo: newProject.showClientInfo !== undefined ? newProject.showClientInfo : Boolean(newProject.clientId),
     showDescription: newProject.showDescription !== undefined ? newProject.showDescription : Boolean(newProject.description?.trim()),
@@ -842,6 +857,9 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
   setDoc(doc(db, catCollection, docTitleId), cleanedData).catch(() => { });
   setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData).catch(() => { });
 
+  // Salva informações completas do projeto dentro da pasta do Storage
+  saveProjectMetadataToStorage(project).catch(() => {});
+
   // Se houver imagens base64, converte para Firebase Storage em segundo plano e sincroniza
   if ((project.thumbnail && project.thumbnail.startsWith('data:')) || (project.images && project.images.some(img => img.startsWith('data:')))) {
     uploadProjectImagesToStorage(project).then((updated) => {
@@ -858,6 +876,7 @@ export function addProject(newProject: Omit<Project, 'id'>): Project {
       setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => { });
       setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => { });
       setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => { });
+      saveProjectMetadataToStorage(updated).catch(() => {});
     });
   }
 
@@ -888,11 +907,14 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
       downloadCode = undefined;
     }
 
+    const storageFolder = updatedData.storageFolder || list[index].storageFolder || getProjectStorageFolder(id, updatedData.title || list[index].title);
+
     const updatedItem: Project = {
       ...list[index],
       ...updatedData,
       thumbnail,
       downloadCode,
+      storageFolder,
       visibility: updatedData.visibility || list[index].visibility || 'public',
       updatedAt: Date.now(),
       createdAt: updatedData.createdAt || list[index].createdAt || getProjectTimestamp(list[index]) || Date.now(),
@@ -926,6 +948,9 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
     // Atualiza na coleção hierárquica projetos > categoria > itens
     setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), cleanedData, { merge: true }).catch(() => { });
 
+    // Salva info_projeto.json no Storage
+    saveProjectMetadataToStorage(updatedItem).catch(() => {});
+
     // Se houver imagens base64, converte para Firebase Storage em segundo plano e sincroniza
     if ((updatedItem.thumbnail && updatedItem.thumbnail.startsWith('data:')) || (updatedItem.images && updatedItem.images.some(img => img.startsWith('data:')))) {
       uploadProjectImagesToStorage(updatedItem).then((finalItem) => {
@@ -942,8 +967,93 @@ export function updateProject(id: string, updatedData: Partial<Project>): void {
         setDoc(doc(db, "projects", id), freshCleaned, { merge: true }).catch(() => { });
         setDoc(doc(db, catCollection, docTitleId), freshCleaned, { merge: true }).catch(() => { });
         setDoc(doc(db, "projetos", catSlug, "itens", docTitleId), freshCleaned, { merge: true }).catch(() => { });
+        saveProjectMetadataToStorage(finalItem).catch(() => {});
       });
     }
+  }
+}
+
+export async function saveProjectMetadataToStorage(project: Project): Promise<void> {
+  if (!project || !project.id) return;
+  const folder = project.storageFolder || getProjectStorageFolder(project.id, project.title);
+  try {
+    const clients = getClients();
+    const client = project.clientId ? clients.find(c => c.id === project.clientId) : undefined;
+    
+    const metadataPayload = {
+      id: project.id,
+      title: project.title || 'Sem título',
+      category: project.category || 'Geral',
+      description: project.description || '',
+      tags: project.tags || [],
+      price: project.price,
+      visibility: project.visibility || 'public',
+      createdAt: project.createdAt || Date.now(),
+      updatedAt: Date.now(),
+      storageFolder: folder,
+      client: client ? {
+        id: client.id,
+        name: client.name,
+        company: client.company || '',
+        phone: client.phone || '',
+        email: client.email || '',
+        instagram: client.instagram || ''
+      } : null,
+      files: {
+        thumbnail: project.thumbnail || '',
+        videoUrl: project.videoUrl || '',
+        downloadUrl: project.downloadUrl || '',
+        galleryCount: (project.images || []).length,
+        images: project.images || []
+      }
+    };
+
+    const jsonString = JSON.stringify(metadataPayload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const metadataRef = storageRef(storage, `${folder}/info_projeto.json`);
+    await uploadBytes(metadataRef, blob, {
+      contentType: 'application/json',
+      customMetadata: {
+        projectId: project.id,
+        updatedAt: new Date().toISOString()
+      }
+    });
+    console.log(`Informações do projeto salvas com sucesso em: ${folder}/info_projeto.json`);
+  } catch (err) {
+    console.warn("Aviso ao salvar info_projeto.json no Storage:", err);
+  }
+}
+
+export async function deleteStorageFolder(folderPath: string): Promise<boolean> {
+  if (!folderPath) return false;
+  const cleanPath = folderPath.replace(/^\/+|\/+$/g, '');
+  if (!cleanPath || cleanPath === 'projects' || cleanPath === 'downloads' || cleanPath === 'clients') {
+    // Salvaguarda: NUNCA excluir pastas-raiz globais
+    return false;
+  }
+  try {
+    const folderRef = storageRef(storage, cleanPath);
+    const result = await listAll(folderRef);
+
+    // 1. Deleta todos os arquivos diretamente dentro da pasta
+    const itemPromises = result.items.map((itemRef) =>
+      deleteObject(itemRef).catch((err) => {
+        console.warn(`Aviso ao excluir item ${itemRef.fullPath}:`, err);
+      })
+    );
+    await Promise.allSettled(itemPromises);
+
+    // 2. Se houver subpastas, deleta recursivamente
+    const prefixPromises = result.prefixes.map((prefixRef) =>
+      deleteStorageFolder(prefixRef.fullPath)
+    );
+    await Promise.allSettled(prefixPromises);
+
+    console.log(`Pasta excluída do Firebase Storage com sucesso: ${cleanPath}`);
+    return true;
+  } catch (error) {
+    console.warn(`Aviso ao listar/excluir pasta do Storage (${cleanPath}):`, error);
+    return false;
   }
 }
 
@@ -953,6 +1063,15 @@ export async function deleteFileFromFirebaseStorage(url?: string): Promise<boole
     return false;
   }
   try {
+    // Se for URL HTTP com query params, extrai o caminho do objeto
+    const match = url.match(/\/o\/([^?#]+)/);
+    if (match) {
+      const objectPath = decodeURIComponent(match[1]);
+      const fileRef = storageRef(storage, objectPath);
+      await deleteObject(fileRef);
+      console.log("Deleted file from storage via path:", objectPath);
+      return true;
+    }
     const fileRef = storageRef(storage, url);
     await deleteObject(fileRef);
     console.log("Deleted file from storage:", url);
@@ -970,6 +1089,25 @@ export async function deleteProject(id: string): Promise<void> {
   const list = getProjects();
   const project = list.find(p => p.id === id);
   if (project) {
+    // 1. Exclui a pasta do projeto no Firebase Storage (e todos os arquivos contidos nela)
+    const foldersToTry: string[] = [];
+    if (project.storageFolder) {
+      foldersToTry.push(project.storageFolder);
+    }
+    const slug = toProjectSlug(project.title);
+    if (slug) {
+      foldersToTry.push(`projects/${slug}_${id}`);
+      foldersToTry.push(`projects/${id}_${slug}`);
+    }
+    foldersToTry.push(`projects/${id}`);
+
+    const uniqueFolders = Array.from(new Set(foldersToTry));
+    for (const folder of uniqueFolders) {
+      await deleteStorageFolder(folder);
+    }
+
+    // 2. Também tenta excluir arquivos soltos individuais rastreados em propriedades
+    // (para retrocompatibilidade com arquivos legados gravados diretamente na raiz de projects/ ou downloads/)
     const filesToDelete: (string | undefined)[] = [
       project.thumbnail,
       project.videoUrl,
@@ -980,6 +1118,9 @@ export async function deleteProject(id: string): Promise<void> {
     await Promise.allSettled(
       filesToDelete.map(url => deleteFileFromFirebaseStorage(url))
     );
+
+    // 3. Limpa o cache IndexedDB da galeria
+    deleteGalleryFromIndexedDB(id).catch(() => {});
 
     const catCollection = getProjectCategoryCollection(project.category);
     const catSlug = getCategorySlug(project.category);

@@ -51,6 +51,21 @@ export async function getGalleryFromIndexedDB(projectId: string): Promise<string
   }
 }
 
+export async function deleteGalleryFromIndexedDB(projectId: string): Promise<void> {
+  try {
+    if (!projectId) return;
+    const db = await openMediaDB();
+    const tx = db.transaction(GALLERY_STORE, 'readwrite');
+    tx.objectStore(GALLERY_STORE).delete(projectId);
+    return new Promise((resolve) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch (err) {
+    console.warn("Could not delete gallery from IndexedDB:", err);
+  }
+}
+
 // Client-side image compression to prevent exceeding browser localStorage or Firestore document limits
 export function compressImageToDataUrl(file: File, maxWidth = 1400, quality = 0.78): Promise<string> {
   return new Promise((resolve) => {

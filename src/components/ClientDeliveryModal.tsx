@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Project, Client } from "../types";
-import { updateProject, getClients } from "../utils/storage";
+import { updateProject, getClients, getProjectStorageFolder, saveProjectMetadataToStorage } from "../utils/storage";
 import { getPublicOrigin } from "../utils/urlHelper";
 import { parseDownloadUrl } from "../utils/downloadHelper";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
@@ -147,7 +147,8 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
     setUploadProgress(0);
 
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storageRef = ref(storage, `downloads/${Date.now()}_${cleanFileName}`);
+    const projectFolder = project.storageFolder || getProjectStorageFolder(project.id, project.title);
+    const storageRef = ref(storage, `${projectFolder}/download_${Date.now()}_${cleanFileName}`);
 
     const metadata = {
       contentType: file.type || 'video/mp4',
@@ -177,8 +178,10 @@ Ficamos muito felizes em realizar essa produção com você! Qualquer dúvida, e
           const finalUrl = `${downloadURL}${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanFileName)}"`;
           
           setDownloadUrlInput(finalUrl);
-          updateProject(project.id, { downloadUrl: finalUrl });
-          onUpdateProject?.({ ...project, downloadUrl: finalUrl });
+          const updatedProj: Project = { ...project, downloadUrl: finalUrl, storageFolder: projectFolder };
+          updateProject(project.id, { downloadUrl: finalUrl, storageFolder: projectFolder });
+          onUpdateProject?.(updatedProj);
+          saveProjectMetadataToStorage(updatedProj).catch(() => {});
           setIsUploadingFile(false);
           showToast("Arquivo original enviado para o Firebase com sucesso!");
         });

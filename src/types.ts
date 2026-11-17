@@ -21,6 +21,7 @@ export interface Project {
   createdAt?: number;
   order?: number;
   price?: number;
+  storageFolder?: string;
 }
 
 export const projects: Project[] = [];

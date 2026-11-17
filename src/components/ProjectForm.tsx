@@ -3,7 +3,7 @@ import { storage } from "../firebase";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Client } from '../types';
 import { ArrowLeft, Save, X, Image as ImageIcon, Video, Tag, Upload, Link, User, Trash2, Loader, CheckCircle2, Check, Globe, EyeOff, DollarSign, Cloud, HardDrive, FileVideo } from 'lucide-react';
-import { getClients, updateProject, getProjectFinancialTransaction, uploadDataUrlToStorage } from '../utils/storage';
+import { getClients, updateProject, getProjectFinancialTransaction, uploadDataUrlToStorage, getProjectStorageFolder, deleteFileFromFirebaseStorage, saveProjectMetadataToStorage } from '../utils/storage';
 import { parseDownloadUrl } from '../utils/downloadHelper';
 import { compressImageToDataUrl, dataUrlToBlob, saveGalleryToIndexedDB, getGalleryFromIndexedDB } from '../utils/imageStorage';
 
@@ -75,15 +75,25 @@ const t = {
 };
 
 export default function ProjectForm({ project, initialCategory, onSave, onCancel, onDelete, onNavigateToClients, lang = "pt" }: ProjectFormProps) {
+  const [projectId] = useState<string>(() => project?.id || Date.now().toString());
+  const [hasUploadedMedia, setHasUploadedMedia] = useState<boolean>(false);
+  const [projectFolder, setProjectFolder] = useState<string>(() => {
+    return getProjectStorageFolder(projectId, project?.title, project?.storageFolder);
+  });
+
   const [clients, setClients] = useState<Client[]>([]);
   const [formData, setFormData] = useState<Partial<Project>>(
     project ? {
       ...project,
+      id: project.id,
+      storageFolder: project.storageFolder || projectFolder,
       visibility: project.visibility || 'public',
       showClientInfo: project.showClientInfo !== undefined ? project.showClientInfo : Boolean(project.clientId),
       showDescription: project.showDescription !== undefined ? project.showDescription : true,
       images: project.images || [],
     } : {
+      id: projectId,
+      storageFolder: projectFolder,
       title: '',
       category: initialCategory || 'Imobiliário',
       thumbnail: '',
@@ -207,7 +217,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
       try {
         const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^/.]+$/, "") + ".jpg";
-        const storageRef = ref(storage, `projects/gallery_${Date.now()}_${cleanName}`);
+        const storageRef = ref(storage, `${projectFolder}/gallery_${Date.now()}_${cleanName}`);
         
         // Se temos o dataUrl comprimido, converte para Blob leve (~80KB); se não, usa o arquivo original
         const uploadPayload = permanentDataUrl ? dataUrlToBlob(permanentDataUrl) : file;
@@ -253,6 +263,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     const validFiles = (Array.from(files) as File[]).filter(f => f.type.startsWith('image/'));
     if (validFiles.length === 0) return;
 
+    setHasUploadedMedia(true);
     setUploadingGallery(true);
 
     // 1. Gera imediatamente dataUrl comprimido permanente para cada imagem (nunca usa blob: temporário)
@@ -322,11 +333,15 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
   };
 
   const handleRemoveGalleryImage = (indexToRemove: number) => {
+    const urlToRemove = (formData.images || [])[indexToRemove];
+    if (urlToRemove) {
+      deleteFileFromFirebaseStorage(urlToRemove);
+    }
     setFormData(prev => {
       const nextImages = (prev.images || []).filter((_, idx) => idx !== indexToRemove);
       if (project?.id) {
         saveGalleryToIndexedDB(project.id, nextImages);
-        updateProject(project.id, { images: nextImages });
+        updateProject(project.id, { images: nextImages, storageFolder: projectFolder });
       }
       return {
         ...prev,
@@ -339,12 +354,13 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setHasUploadedMedia(true);
     setUploading(fieldName);
     setUploadProgress(0);
 
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const folder = fieldName === 'downloadUrl' ? 'downloads' : 'projects';
-    const storageRef = ref(storage, `${folder}/${Date.now()}_${cleanFileName}`);
+    const prefix = fieldName === 'thumbnail' ? 'thumb' : fieldName === 'videoUrl' ? 'video' : 'download';
+    const storageRef = ref(storage, `${projectFolder}/${prefix}_${Date.now()}_${cleanFileName}`);
 
     const metadata = {
       contentType: file.type || (fieldName === 'downloadUrl' ? 'video/mp4' : 'application/octet-stream'),
@@ -375,7 +391,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
             const sep = downloadURL.includes('?') ? '&' : '?';
             finalUrl = `${downloadURL}${sep}response-content-disposition=attachment%3B%20filename%3D"${encodeURIComponent(cleanFileName)}"`;
           }
-          setFormData((prev) => ({ ...prev, [fieldName]: finalUrl }));
+          setFormData((prev) => ({ ...prev, [fieldName]: finalUrl, storageFolder: projectFolder }));
           setUploading(null);
         });
       }
@@ -385,7 +401,16 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
-    setFormData((prev) => ({ ...prev, [e.target.name]: value }));
+    const fieldName = e.target.name;
+
+    if (fieldName === 'title' && !hasUploadedMedia && !project?.storageFolder) {
+      const newFolder = getProjectStorageFolder(projectId, value as string);
+      setProjectFolder(newFolder);
+      setFormData((prev) => ({ ...prev, title: value as string, storageFolder: newFolder }));
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [fieldName]: value }));
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -410,7 +435,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
       // Se a thumbnail for base64, faz upload para o Firebase Storage antes de salvar
       if (finalThumbnail.startsWith('data:')) {
         try {
-          const remoteThumb = await uploadDataUrlToStorage(finalThumbnail, 'projects/thumbs');
+          const remoteThumb = await uploadDataUrlToStorage(finalThumbnail, `${projectFolder}/thumbs`);
           if (remoteThumb && !remoteThumb.startsWith('data:')) {
             finalThumbnail = remoteThumb;
           }
@@ -424,7 +449,7 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           finalImages.map(async (img) => {
             if (img.startsWith('data:')) {
               try {
-                const url = await uploadDataUrlToStorage(img, 'projects/gallery');
+                const url = await uploadDataUrlToStorage(img, `${projectFolder}/gallery`);
                 return url;
               } catch {
                 return img;
@@ -440,6 +465,8 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
 
       const finalData: Partial<Project> = {
         ...formData,
+        id: projectId,
+        storageFolder: projectFolder,
         title: cleanTitle,
         thumbnail: finalThumbnail,
         images: finalImages,
@@ -459,9 +486,11 @@ export default function ProjectForm({ project, initialCategory, onSave, onCancel
           isPhotoGallery: isPhoto,
           thumbnail: finalData.thumbnail,
           title: cleanTitle,
+          storageFolder: projectFolder,
         });
       }
       onSave(finalData, paymentStatus);
+      saveProjectMetadataToStorage(finalData as Project).catch(() => {});
     } finally {
       setIsSubmitting(false);
     }
