@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useInView } from "motion/react";
-import { Check, Camera, Clock, ArrowUpRight } from "lucide-react";
+import { Check, Camera, Clock, ArrowUpRight, CloudRain } from "lucide-react";
 import BlurText from "../components/BlurText";
 import CircularText from "../components/CircularText";
 
@@ -60,10 +60,10 @@ const plans: PlanItem[] = [
     name: "BLACK PRO",
     badge: "BLACK FIM DE ANO",
     popular: true,
-    priceDisplay: "R$ 250",
+    priceDisplay: "R$ 220",
     pricePeriod: "/ vídeo",
     priceSubtext: "R$ 2.500,00 por mês",
-    priceComparison: "Valor por vídeos Avulsos R$ 400,00",
+    priceComparison: "Vídeos Avulsos R$ 220,00",
     description: "Drone + câmera. O pacote mensal mais pedido da Black Imobiliária com 10 vídeos completos em condição especial de campanha.",
     features: [
       "10 vídeos imobiliários completos por mês",
@@ -80,7 +80,7 @@ const plans: PlanItem[] = [
     id: "geracao-ia",
     name: "GERAÇÃO IA",
     badge: "GERAÇÃO IA",
-    priceDisplay: "R$ 50,00 à 150,00",
+    priceDisplay: "R$ 50 à 150",
     pricePeriod: "",
     priceSubtext: "Dependendo da utilização no imóvel por vídeo",
     description: "Produção de vídeos a partir de projetos arquitetônicos, renders e modelos 3D, transformando imagens e projetos estáticos em apresentações audiovisuais com movimentos de câmera, animações e efeitos cinematográficos.",
@@ -92,7 +92,7 @@ const plans: PlanItem[] = [
       "Ideal para lançamentos na planta e decorados virtuais",
       "Trilha sonora e finalização em alta definição"
     ],
-    ctaMessage: "Olá Daniel! Gostaria de contratar o plano GERAÇÃO IA (R$ 50,00 à 150,00 por vídeo)."
+    ctaMessage: "Olá Daniel! Gostaria de contratar o plano GERAÇÃO IA (R$ 50 a 150 por vídeo)."
   }
 ];
 
@@ -202,8 +202,8 @@ export default function Planos() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.08 * index }}
                   className={`relative rounded-3xl p-7 flex flex-col justify-between transition-all duration-300 ${isPopular
-                      ? "bg-neutral-950/95 backdrop-blur-md text-white ring-2 ring-red-600 shadow-[0_25px_50px_rgba(0,0,0,0.35)] scale-100 lg:scale-[1.05] lg:-translate-y-4 z-20"
-                      : "bg-white/85 backdrop-blur-md text-neutral-900 border border-neutral-300/80 shadow-[0_10px_30px_rgba(0,0,0,0.03)] hover:shadow-xl hover:bg-white/95 hover:border-neutral-400"
+                    ? "bg-neutral-950/95 backdrop-blur-md text-white ring-2 ring-red-600 shadow-[0_25px_50px_rgba(0,0,0,0.35)] scale-100 lg:scale-[1.05] lg:-translate-y-4 z-20"
+                    : "bg-white/85 backdrop-blur-md text-neutral-900 border border-neutral-300/80 shadow-[0_10px_30px_rgba(0,0,0,0.03)] hover:shadow-xl hover:bg-white/95 hover:border-neutral-400"
                     }`}
                 >
                   {/* Selo do Card */}
@@ -211,8 +211,8 @@ export default function Planos() {
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap">
                       <span
                         className={`rounded-full uppercase transition-all ${isPopular
-                            ? "px-5 py-1.5 text-xs font-black tracking-wider bg-red-600 text-white shadow-lg shadow-red-600/40 ring-2 ring-red-500/60"
-                            : "px-3.5 py-1 text-[11px] font-bold tracking-wider bg-neutral-900 text-white border border-neutral-700 shadow-md"
+                          ? "px-5 py-1.5 text-xs font-black tracking-wider bg-red-600 text-white shadow-lg shadow-red-600/40 ring-2 ring-red-500/60"
+                          : "px-3.5 py-1 text-[11px] font-bold tracking-wider bg-neutral-900 text-white border border-neutral-700 shadow-md"
                           }`}
                       >
                         {plan.badge}
@@ -302,7 +302,7 @@ export default function Planos() {
                       {/* Valor comparativo no plano PROFISSIONAL */}
                       {plan.priceComparison && (
                         <p className="text-[13px] font-semibold text-white mt-1.5 leading-snug">
-                          Valor por vídeos Avulsos R$ 400,00
+                          {plan.priceComparison}
                         </p>
                       )}
                     </div>
@@ -352,6 +352,141 @@ export default function Planos() {
               );
             })}
           </div>
+
+          {/* Card Horizontal: Até na chuva (Condição Climática Especial) */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="relative overflow-hidden rounded-3xl mt-12 md:mt-16 p-7 sm:p-9 md:p-10 bg-gradient-to-br from-[#0c1f38] via-[#102b4e] to-[#071629] text-white border border-sky-400/35 shadow-[0_20px_50px_rgba(7,22,41,0.45)] ring-1 ring-sky-500/20 backdrop-blur-md z-10"
+          >
+            {/* Nuvens Animadas Passando no Card */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+              {/* Nuvem 1 (Frente, mais rápida e suave) */}
+              <motion.div
+                animate={{
+                  x: ["-260px", "120%"],
+                  y: [0, -8, 6, -6, 0],
+                }}
+                transition={{
+                  x: {
+                    duration: 22,
+                    repeat: Infinity,
+                    ease: "linear",
+                  },
+                  y: {
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  },
+                }}
+                className="absolute top-2 sm:top-4 left-0 opacity-20 filter blur-[1px] text-sky-200"
+              >
+                <svg width="240" height="140" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                </svg>
+              </motion.div>
+
+              {/* Nuvem 2 (Fundo, mais lenta e ampla) */}
+              <motion.div
+                animate={{
+                  x: ["-320px", "120%"],
+                  y: [0, 10, -8, 0],
+                }}
+                transition={{
+                  x: {
+                    duration: 32,
+                    repeat: Infinity,
+                    ease: "linear",
+                    delay: 11,
+                  },
+                  y: {
+                    duration: 8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  },
+                }}
+                className="absolute bottom-1 sm:bottom-2 left-0 opacity-15 filter blur-[2px] text-white"
+              >
+                <svg width="300" height="170" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                </svg>
+              </motion.div>
+
+              {/* Brilho radial de fundo azul */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/10 rounded-full filter blur-3xl pointer-events-none" />
+            </div>
+
+            {/* Conteúdo do Card */}
+            <div className="relative z-10 flex flex-col lg:flex-row items-center lg:items-center justify-between gap-8 md:gap-10">
+              {/* Coluna Esquerda: Informações e Bio */}
+              <div className="flex-1 text-left">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase bg-sky-500/20 text-sky-300 border border-sky-400/30 shadow-xs mb-3.5">
+                  <CloudRain size={15} className="text-sky-300 animate-pulse" />
+                  <span>CONDIÇÃO CLIMÁTICA ESPECIAL</span>
+                </div>
+
+                <h3 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white mb-3">
+                  Até na chuva
+                </h3>
+
+                <p className="text-sky-100/85 text-sm sm:text-base leading-relaxed max-w-2xl mb-6 font-normal">
+                  O tempo fechou? A gente não para! Quando o tempo estiver ruim, nublado ou chuvoso, conseguimos esse valor promocional exclusivo para você não deixar de produzir e valorizar o seu imóvel.
+                </p>
+
+                {/* Destaques / Benefícios */}
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs sm:text-[13px] text-sky-200">
+                  <div className="flex items-center gap-2 bg-sky-950/70 border border-sky-800/50 px-3.5 py-2 rounded-xl">
+                    <Check size={14} className="text-sky-400 shrink-0" />
+                    <span>Valor promocional para dias nublados ou chuvosos</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-sky-950/70 border border-sky-800/50 px-3.5 py-2 rounded-xl">
+                    <Check size={14} className="text-sky-400 shrink-0" />
+                    <span>Drone e/ou Câmera adaptados com segurança</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-sky-950/70 border border-sky-800/50 px-3.5 py-2 rounded-xl">
+                    <Check size={14} className="text-sky-400 shrink-0" />
+                    <span>Tratamento de cor (Color Grading) otimizado</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Coluna Direita: Preço Promocional e CTA */}
+              <div className="w-full lg:w-auto shrink-0 flex flex-col sm:flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-center gap-5 p-5 sm:p-6 rounded-2xl bg-sky-950/80 border border-sky-500/30 shadow-inner">
+                <div className="text-center sm:text-left lg:text-right">
+                  <div className="flex items-center justify-center sm:justify-start lg:justify-end gap-2 mb-1">
+                    <span className="text-xs font-semibold text-sky-300/80 line-through">
+                      De R$ 250
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-sky-400 text-sky-950 px-2 py-0.5 rounded-full">
+                      PROMOÇÃO
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-center sm:justify-start lg:justify-end gap-1.5 whitespace-nowrap">
+                    <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                      R$ 200
+                    </span>
+                    <span className="text-xs font-semibold text-sky-300">
+                      / vídeo
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-medium text-sky-200/90 mt-1">
+                    O valor de 250 sai por 200
+                  </p>
+                </div>
+
+                <a
+                  href={getWhatsAppLink("Olá Daniel! Gostaria de aproveitar a condição promocional do plano 'Até na chuva' (R$ 200 por vídeo em dia chuvoso/nublado).")}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full sm:w-auto lg:w-full py-3.5 px-6 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 text-sky-950 hover:text-black shadow-lg shadow-sky-500/30 transition-all duration-300 cursor-pointer active:scale-95"
+                >
+                  <Camera size={16} />
+                  <span>Bora Gravar!</span>
+                </a>
+              </div>
+            </div>
+          </motion.div>
 
           {/* Seção Bora Gravar? com Círculo Giratório */}
           <div ref={boraSectionRef} className="w-full overflow-visible mt-20 md:mt-28 mb-16 md:mb-24 px-4 flex flex-col items-center">
@@ -506,7 +641,7 @@ export default function Planos() {
             <span>Campanha <strong className="font-bold text-white">Black Imobiliária</strong> válida até <strong className="font-bold text-white">dezembro de 2026</strong>.</span>
           </div>
           <span className="hidden sm:inline text-white/75">•</span>
-          <span>Válido somente para mensalistas o valor de <strong className="font-bold text-white">R$ 250,00 por vídeo</strong> (vídeos avulsos não entram na Black).</span>
+          <span>Válido para <strong className="font-bold text-white">mensalistas e vídeos avulsos</strong> enquanto ter agenda disponível.</span>
         </div>
       </div>
     </motion.div>
