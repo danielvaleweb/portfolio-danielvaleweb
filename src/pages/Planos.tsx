@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useInView } from "motion/react";
-import { Check, Camera, Clock, ArrowUpRight, CloudRain } from "lucide-react";
+import { Check, Camera, Clock, ArrowUpRight, CloudRain, X } from "lucide-react";
 import BlurText from "../components/BlurText";
 import CircularText from "../components/CircularText";
+import RainEffect from "../components/rain/RainEffect";
 
 interface PlanItem {
   id: string;
@@ -101,15 +102,6 @@ const plans: PlanItem[] = [
     ctaMessage: "Olá Daniel! Gostaria de contratar o plano GERAÇÃO IA (R$ 50 a 150 por vídeo)."
   }
 ];
-
-const rainDrops = Array.from({ length: 32 }, (_, i) => ({
-  id: i,
-  left: `${(i * 3.3 - 6).toFixed(1)}%`,
-  height: `${18 + (i % 5) * 5}px`,
-  opacity: 0.18 + (i % 4) * 0.12,
-  duration: 0.75 + (i % 5) * 0.15,
-  delay: (i % 9) * 0.14,
-}));
 
 export default function Planos() {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -402,28 +394,15 @@ export default function Planos() {
               </div>
 
               <div className="relative overflow-hidden rounded-3xl p-7 sm:p-9 md:p-10 bg-neutral-950/95 backdrop-blur-md text-white border border-neutral-800 shadow-[0_25px_50px_rgba(0,0,0,0.4)]">
-                {/* Efeito Climático: Nuvens e Chuva Caindo na Diagonal */}
+                {/* Efeito Climático: Chuva Realista WebGL (react-weather-effects) e Nuvens */}
                 <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-                  {/* Chuva Caindo na Diagonal */}
-                  {rainDrops.map((drop) => (
-                    <motion.div
-                      key={drop.id}
-                      initial={{ y: -60, x: 0, opacity: 0 }}
-                      animate={{
-                        y: [-50, 480],
-                        x: [0, 160],
-                        opacity: [0, drop.opacity, drop.opacity, 0],
-                      }}
-                      transition={{
-                        duration: drop.duration,
-                        repeat: Infinity,
-                        ease: "linear",
-                        delay: drop.delay,
-                      }}
-                      style={{ left: drop.left, height: drop.height }}
-                      className="absolute w-[1.5px] rounded-full bg-gradient-to-b from-transparent via-sky-300/80 to-sky-100 rotate-[22deg] pointer-events-none"
-                    />
-                  ))}
+                  {/* WebGL Rain Effect (Gotas d'água na janela com vista de cobertura de luxo) */}
+                  <div className="absolute inset-0 opacity-60 pointer-events-none">
+                    <RainEffect type="rain" />
+                  </div>
+
+                  {/* Gradiente escuro para garantir leitura nítida de textos e preços */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-neutral-950/80 via-neutral-950/40 to-neutral-950/75 pointer-events-none" />
 
                   {/* Nuvem 1 (Frente, mais rápida e suave) */}
                   <motion.div
@@ -496,10 +475,10 @@ export default function Planos() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-1">
                       <div className="space-y-3">
                         <div className="flex items-start gap-2.5">
-                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
-                            <Check size={11} strokeWidth={3} />
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-neutral-800 text-neutral-400 border border-neutral-700/60">
+                            <X size={11} strokeWidth={3} />
                           </div>
-                          <span className="text-xs sm:text-[13px] leading-snug line-through text-neutral-500 decoration-red-500 decoration-2">
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-400">
                             Captação com Drone 4K
                           </span>
                         </div>
