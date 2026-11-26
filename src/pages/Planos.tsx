@@ -23,7 +23,7 @@ const plans: PlanItem[] = [
     id: "drone-4k",
     name: "DRONE 4K",
     badge: "SOMENTE DRONE",
-    priceDisplay: "R$ 200",
+    priceDisplay: "R$ 300",
     pricePeriod: "/ vídeo",
     priceSubtext: "Produção exclusiva com imagens aéreas",
     description: "Produção audiovisual utilizando exclusivamente drone, com imagens aéreas cinematográficas para apresentação de imóveis, fachadas, terrenos e áreas externas.",
@@ -35,13 +35,13 @@ const plans: PlanItem[] = [
       "Drone homologado com piloto capacitado",
       "Tratamento de cor e entrega em alta resolução"
     ],
-    ctaMessage: "Olá Daniel! Gostaria de contratar o plano DRONE 4K (R$ 200 por vídeo)."
+    ctaMessage: "Olá Daniel! Gostaria de contratar o plano DRONE 4K (R$ 300 por vídeo)."
   },
   {
     id: "filmagem-4k",
     name: "FILMAGEM 4K",
     badge: "SOMENTE CÂMERA",
-    priceDisplay: "R$ 240",
+    priceDisplay: "R$ 350",
     pricePeriod: "/ vídeo",
     priceSubtext: "Produção em solo com câmera mirrorless",
     description: "Produção audiovisual utilizando exclusivamente câmera mirrorless 4K, com imagens estabilizadas, movimentos cinematográficos e tratamento profissional de imagem.",
@@ -53,7 +53,7 @@ const plans: PlanItem[] = [
       "Captação minuciosa dos ambientes e acabamentos",
       "Iluminação auxiliar para valorização de interiores"
     ],
-    ctaMessage: "Olá Daniel! Gostaria de contratar o plano FILMAGEM 4K (R$ 240 por vídeo)."
+    ctaMessage: "Olá Daniel! Gostaria de contratar o plano FILMAGEM 4K (R$ 350 por vídeo)."
   },
   {
     id: "profissional",
@@ -201,21 +201,19 @@ export default function Planos() {
                   initial={{ opacity: 0, y: 25 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.08 * index }}
-                  className={`relative rounded-3xl p-7 flex flex-col justify-between transition-all duration-300 ${
-                    isPopular
+                  className={`relative rounded-3xl p-7 flex flex-col justify-between transition-all duration-300 ${isPopular
                       ? "bg-neutral-950/95 backdrop-blur-md text-white ring-2 ring-red-600 shadow-[0_25px_50px_rgba(0,0,0,0.35)] scale-100 lg:scale-[1.05] lg:-translate-y-4 z-20"
                       : "bg-white/85 backdrop-blur-md text-neutral-900 border border-neutral-300/80 shadow-[0_10px_30px_rgba(0,0,0,0.03)] hover:shadow-xl hover:bg-white/95 hover:border-neutral-400"
-                  }`}
+                    }`}
                 >
                   {/* Selo do Card */}
                   {plan.badge && (
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap">
                       <span
-                        className={`rounded-full uppercase transition-all ${
-                          isPopular
+                        className={`rounded-full uppercase transition-all ${isPopular
                             ? "px-5 py-1.5 text-xs font-black tracking-wider bg-red-600 text-white shadow-lg shadow-red-600/40 ring-2 ring-red-500/60"
                             : "px-3.5 py-1 text-[11px] font-bold tracking-wider bg-neutral-900 text-white border border-neutral-700 shadow-md"
-                        }`}
+                          }`}
                       >
                         {plan.badge}
                       </span>
@@ -284,9 +282,8 @@ export default function Planos() {
                         }`}
                     >
                       <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-                        <span className={`font-extrabold tracking-tight ${
-                          plan.id === "geracao-ia" ? "text-2xl sm:text-[26px]" : "text-3xl"
-                        } ${isPopular ? "text-white" : "text-neutral-950"}`}>
+                        <span className={`font-extrabold tracking-tight ${plan.id === "geracao-ia" ? "text-2xl sm:text-[26px]" : "text-3xl"
+                          } ${isPopular ? "text-white" : "text-neutral-950"}`}>
                           {plan.priceDisplay}
                         </span>
                         {plan.pricePeriod && (
