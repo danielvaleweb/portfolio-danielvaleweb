@@ -1,9 +1,10 @@
 import { motion, useScroll, useTransform } from "motion/react";
-
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowDown } from "lucide-react";
 
 export default function Hero() {
+  const navigate = useNavigate();
   const { scrollY } = useScroll();
   const blur = useTransform(scrollY, [0, 500], [0, 10]);
   const opacity = useTransform(scrollY, [0, 500], [1, 0.4]);
@@ -88,11 +89,10 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
             className="flex items-center justify-between gap-4 relative md:left-12 lg:left-20"
           >
-            {/* Botão Desktop: REC */}
-            <motion.a
-              href="https://wa.me/5532998288650"
-              target="_blank"
-              rel="noreferrer"
+            {/* Botão Desktop: REC / Bora gravar? (leva para /planos) */}
+            <motion.button
+              type="button"
+              onClick={() => navigate("/planos")}
               animate={{
                 rotate: [0, -2.5, 2.5, -1.5, 1.5, 0],
               }}
@@ -146,13 +146,12 @@ export default function Hero() {
                   </span>
                 </div>
               </div>
-            </motion.a>
+            </motion.button>
 
-            {/* Botão Mobile: Solicitar orçamento (substitui o REC no modo mobile) */}
-            <motion.a
-              href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
-              target="_blank"
-              rel="noreferrer"
+            {/* Botão Mobile: Solicitar orçamento (leva para /planos) */}
+            <motion.button
+              type="button"
+              onClick={() => navigate("/planos")}
               animate={{
                 rotate: [0, -2.5, 2.5, -1.5, 1.5, 0],
               }}
@@ -180,8 +179,8 @@ export default function Hero() {
               </div>
 
               {/* Text */}
-              <span className="relative z-10 font-bold tracking-tight">Solicitar orçamento</span>
-            </motion.a>
+              <span className="relative z-10 font-bold tracking-tight">Planos & preços</span>
+            </motion.button>
 
             {/* Setinha animada "Role para baixo" - Somente no modo mobile */}
             <motion.button

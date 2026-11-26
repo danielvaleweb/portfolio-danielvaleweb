@@ -119,8 +119,8 @@ export default function Navbar() {
     <motion.nav
       style={{ opacity: 1 }}
       className={`fixed top-0 left-0 w-full z-50 px-6 md:px-12 h-24 flex items-center transition-all duration-700 border-b pointer-events-none ${isScrolled
-          ? `bg-transparent backdrop-blur-md ${isDarkSection ? 'border-white/10' : 'border-black/5'} shadow-sm`
-          : "bg-transparent border-transparent"
+        ? `bg-transparent backdrop-blur-md ${isDarkSection ? 'border-white/10' : 'border-black/5'} shadow-sm`
+        : "bg-transparent border-transparent"
         }`}
     >
       {/* Left Logo */}
@@ -170,11 +170,10 @@ export default function Navbar() {
 
       {/* Right Button & Mobile Menu Toggle */}
       <div className="flex-1 flex justify-end items-center gap-2 sm:gap-3 pointer-events-auto">
-        {/* Botão Desktop: sempre visível no topo no desktop */}
-        <motion.a
-          href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
-          target="_blank"
-          rel="noreferrer"
+        {/* Botão Desktop: sempre visível no topo no desktop (leva para /planos) */}
+        <motion.button
+          type="button"
+          onClick={() => navigate("/planos")}
           animate={{
             rotate: [0, -2, 2, -1.5, 1.5, 0],
           }}
@@ -202,14 +201,16 @@ export default function Navbar() {
           </div>
 
           {/* Text */}
-          <span className="relative z-10 font-medium">Solicitar orçamento</span>
-        </motion.a>
+          <span className="relative z-10 font-medium">Planos & preços</span>
+        </motion.button>
 
         {/* Botão Mobile: no topo fica no Hero (substituindo o REC) e vai para a navbar SOMENTE quando chegar na sessão de imobiliário */}
         <AnimatePresence>
           {(location.pathname === "/" ? isReachedImobiliario : true) && (
-            <motion.a
+            <motion.button
               key="solicitar-orcamento-mobile"
+              type="button"
+              onClick={() => navigate("/planos")}
               initial={{ opacity: 0, scale: 0.85, x: 8 }}
               animate={{
                 opacity: 1,
@@ -227,9 +228,6 @@ export default function Navbar() {
                 },
                 default: { duration: 0.25, ease: "easeOut" }
               }}
-              href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
-              target="_blank"
-              rel="noreferrer"
               whileHover={{ rotate: 0 }}
               whileTap={{ scale: 0.95 }}
               className={`relative group inline-flex md:hidden items-center justify-center h-10 px-3.5 rounded-xl text-white text-[12px] font-medium overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)] whitespace-nowrap cursor-pointer ${isDarkSection ? 'border border-white/20' : 'border border-transparent'}`}
@@ -243,8 +241,8 @@ export default function Navbar() {
               </div>
 
               {/* Text */}
-              <span className="relative z-10 font-medium">Solicitar orçamento</span>
-            </motion.a>
+              <span className="relative z-10 font-medium">Planos & preços</span>
+            </motion.button>
           )}
         </AnimatePresence>
 
@@ -338,18 +336,19 @@ export default function Navbar() {
                   </a>
                 </nav>
 
-                {/* WhatsApp Button */}
+                {/* Botão de Planos & Preços */}
                 <div className="pt-2">
-                  <a
-                    href={`https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Gostaria de solicitar um orçamento para um projeto.")}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#25D366] text-white font-bold text-[14px] shadow-lg shadow-green-500/20 active:scale-[0.98] transition-all"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate("/planos");
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-neutral-900 hover:bg-black text-white font-bold text-[14px] shadow-lg shadow-neutral-900/20 active:scale-[0.98] transition-all cursor-pointer"
                   >
                     <MessageSquare size={18} />
-                    <span>Solicitar orçamento</span>
-                  </a>
+                    <span>Planos & preços</span>
+                  </button>
                 </div>
               </div>
 
