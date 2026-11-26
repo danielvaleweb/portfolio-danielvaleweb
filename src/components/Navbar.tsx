@@ -83,6 +83,19 @@ export default function Navbar() {
   const textColor = isDarkSection ? "text-white" : "text-black";
   const textColorMuted = isDarkSection ? "text-white/70 hover:text-white" : "text-black/70 hover:text-black";
 
+  const isPlanos = location.pathname === "/planos";
+
+  const handleCtaClick = () => {
+    if (isPlanos) {
+      window.open(
+        `https://wa.me/5532998288650?text=${encodeURIComponent("Olá Daniel! Estou na página de planos e gostaria de falar com você.")}`,
+        "_blank"
+      );
+    } else {
+      navigate("/planos");
+    }
+  };
+
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
     if (location.pathname !== "/") {
@@ -170,10 +183,10 @@ export default function Navbar() {
 
       {/* Right Button & Mobile Menu Toggle */}
       <div className="flex-1 flex justify-end items-center gap-2 sm:gap-3 pointer-events-auto">
-        {/* Botão Desktop: sempre visível no topo no desktop (leva para /planos) */}
+        {/* Botão Desktop: sempre visível no topo no desktop */}
         <motion.button
           type="button"
-          onClick={() => navigate("/planos")}
+          onClick={handleCtaClick}
           animate={{
             rotate: [0, -2, 2, -1.5, 1.5, 0],
           }}
@@ -201,7 +214,9 @@ export default function Navbar() {
           </div>
 
           {/* Text */}
-          <span className="relative z-10 font-medium">Planos & preços</span>
+          <span className="relative z-10 font-medium">
+            {isPlanos ? "Falar com Daniel" : "Planos & preços"}
+          </span>
         </motion.button>
 
         {/* Botão Mobile: no topo fica no Hero (substituindo o REC) e vai para a navbar SOMENTE quando chegar na sessão de imobiliário */}
@@ -210,7 +225,7 @@ export default function Navbar() {
             <motion.button
               key="solicitar-orcamento-mobile"
               type="button"
-              onClick={() => navigate("/planos")}
+              onClick={handleCtaClick}
               initial={{ opacity: 0, scale: 0.85, x: 8 }}
               animate={{
                 opacity: 1,
@@ -241,7 +256,9 @@ export default function Navbar() {
               </div>
 
               {/* Text */}
-              <span className="relative z-10 font-medium">Planos & preços</span>
+              <span className="relative z-10 font-medium">
+                {isPlanos ? "Falar com Daniel" : "Planos & preços"}
+              </span>
             </motion.button>
           )}
         </AnimatePresence>
@@ -336,18 +353,18 @@ export default function Navbar() {
                   </a>
                 </nav>
 
-                {/* Botão de Planos & Preços */}
+                {/* Botão de Planos & Preços / Falar com Daniel */}
                 <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => {
                       setMobileMenuOpen(false);
-                      navigate("/planos");
+                      handleCtaClick();
                     }}
                     className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-neutral-900 hover:bg-black text-white font-bold text-[14px] shadow-lg shadow-neutral-900/20 active:scale-[0.98] transition-all cursor-pointer"
                   >
                     <MessageSquare size={18} />
-                    <span>Planos & preços</span>
+                    <span>{isPlanos ? "Falar com Daniel" : "Planos & preços"}</span>
                   </button>
                 </div>
               </div>
