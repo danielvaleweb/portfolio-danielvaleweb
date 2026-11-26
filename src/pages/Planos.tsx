@@ -9,10 +9,13 @@ interface PlanItem {
   name: string;
   badge: string;
   popular?: boolean;
+  originalPrice?: string;
+  promoBadge?: string;
   priceDisplay: string;
   pricePeriod: string;
   priceSubtext: string;
   priceComparison?: string;
+  priceComparisonSub?: string;
   description: string;
   features: string[];
   ctaMessage: string;
@@ -60,10 +63,13 @@ const plans: PlanItem[] = [
     name: "BLACK PRO",
     badge: "BLACK FIM DE ANO",
     popular: true,
-    priceDisplay: "R$ 220",
+    originalPrice: "De R$ 400",
+    promoBadge: "PROMOÇÃO",
+    priceDisplay: "R$ 250",
     pricePeriod: "/ vídeo",
     priceSubtext: "R$ 2.500,00 por mês",
-    priceComparison: "Vídeos Avulsos R$ 220,00",
+    priceComparison: "Vídeos Avulsos R$ 250",
+    priceComparisonSub: "só na Black",
     description: "Drone + câmera. O pacote mensal mais pedido da Black Imobiliária com 10 vídeos completos em condição especial de campanha.",
     features: [
       "10 vídeos imobiliários completos por mês",
@@ -95,6 +101,15 @@ const plans: PlanItem[] = [
     ctaMessage: "Olá Daniel! Gostaria de contratar o plano GERAÇÃO IA (R$ 50 a 150 por vídeo)."
   }
 ];
+
+const rainDrops = Array.from({ length: 32 }, (_, i) => ({
+  id: i,
+  left: `${(i * 3.3 - 6).toFixed(1)}%`,
+  height: `${18 + (i % 5) * 5}px`,
+  opacity: 0.18 + (i % 4) * 0.12,
+  duration: 0.75 + (i % 5) * 0.15,
+  delay: (i % 9) * 0.14,
+}));
 
 export default function Planos() {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -281,6 +296,18 @@ export default function Planos() {
                         : "bg-neutral-100/70 border border-neutral-200/70"
                         }`}
                     >
+                      {/* Selo Promocional e Valor Riscado (estilo print 2 nas cores vermelhas) */}
+                      {plan.originalPrice && (
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-xs font-semibold text-neutral-400 line-through decoration-red-500 decoration-2">
+                            {plan.originalPrice}
+                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-red-600 text-white px-2 py-0.5 rounded-full shadow-sm">
+                            {plan.promoBadge || "PROMOÇÃO"}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex items-baseline gap-1.5 whitespace-nowrap">
                         <span className={`font-extrabold tracking-tight ${plan.id === "geracao-ia" ? "text-2xl sm:text-[26px]" : "text-3xl"
                           } ${isPopular ? "text-white" : "text-neutral-950"}`}>
@@ -301,9 +328,16 @@ export default function Planos() {
 
                       {/* Valor comparativo no plano PROFISSIONAL */}
                       {plan.priceComparison && (
-                        <p className="text-[13px] font-semibold text-white mt-1.5 leading-snug">
-                          {plan.priceComparison}
-                        </p>
+                        <div className="mt-1.5 leading-snug">
+                          <p className="text-[12px] sm:text-[13px] font-semibold text-white">
+                            {plan.priceComparison}
+                          </p>
+                          {plan.priceComparisonSub && (
+                            <p className="text-[11px] font-bold text-red-500 mt-0.5">
+                              {plan.priceComparisonSub}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -367,9 +401,30 @@ export default function Planos() {
                 </span>
               </div>
 
-              <div className="relative overflow-hidden rounded-3xl p-7 sm:p-9 md:p-10 bg-gradient-to-br from-[#0c1f38] via-[#102b4e] to-[#071629] text-white border border-sky-400/35 shadow-[0_20px_50px_rgba(7,22,41,0.45)] ring-1 ring-sky-500/20 backdrop-blur-md">
-                {/* Nuvens Animadas Passando no Card */}
+              <div className="relative overflow-hidden rounded-3xl p-7 sm:p-9 md:p-10 bg-neutral-950/95 backdrop-blur-md text-white border border-neutral-800 shadow-[0_25px_50px_rgba(0,0,0,0.4)]">
+                {/* Efeito Climático: Nuvens e Chuva Caindo na Diagonal */}
                 <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                  {/* Chuva Caindo na Diagonal */}
+                  {rainDrops.map((drop) => (
+                    <motion.div
+                      key={drop.id}
+                      initial={{ y: -60, x: 0, opacity: 0 }}
+                      animate={{
+                        y: [-50, 480],
+                        x: [0, 160],
+                        opacity: [0, drop.opacity, drop.opacity, 0],
+                      }}
+                      transition={{
+                        duration: drop.duration,
+                        repeat: Infinity,
+                        ease: "linear",
+                        delay: drop.delay,
+                      }}
+                      style={{ left: drop.left, height: drop.height }}
+                      className="absolute w-[1.5px] rounded-full bg-gradient-to-b from-transparent via-sky-300/80 to-sky-100 rotate-[22deg] pointer-events-none"
+                    />
+                  ))}
+
                   {/* Nuvem 1 (Frente, mais rápida e suave) */}
                   <motion.div
                     animate={{
@@ -388,109 +443,163 @@ export default function Planos() {
                         ease: "easeInOut",
                       },
                     }}
-                    className="absolute top-2 sm:top-4 left-0 opacity-20 filter blur-[1px] text-sky-200"
+                    className="absolute top-2 sm:top-4 left-0 opacity-15 filter blur-[1px] text-sky-200"
                   >
                     <svg width="240" height="140" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
                     </svg>
                   </motion.div>
 
-                {/* Nuvem 2 (Fundo, mais lenta e ampla) */}
-                <motion.div
-                  animate={{
-                    x: ["-320px", "120%"],
-                    y: [0, 10, -8, 0],
-                  }}
-                  transition={{
-                    x: {
-                      duration: 32,
-                      repeat: Infinity,
-                      ease: "linear",
-                      delay: 11,
-                    },
-                    y: {
-                      duration: 8,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                  }}
-                  className="absolute bottom-1 sm:bottom-2 left-0 opacity-15 filter blur-[2px] text-white"
-                >
-                  <svg width="300" height="170" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
-                  </svg>
-                </motion.div>
+                  {/* Nuvem 2 (Fundo, mais lenta e ampla) */}
+                  <motion.div
+                    animate={{
+                      x: ["-320px", "120%"],
+                      y: [0, 10, -8, 0],
+                    }}
+                    transition={{
+                      x: {
+                        duration: 32,
+                        repeat: Infinity,
+                        ease: "linear",
+                        delay: 11,
+                      },
+                      y: {
+                        duration: 8,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      },
+                    }}
+                    className="absolute bottom-1 sm:bottom-2 left-0 opacity-10 filter blur-[2px] text-white"
+                  >
+                    <svg width="300" height="170" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                    </svg>
+                  </motion.div>
 
-                    {/* Brilho radial de fundo azul */}
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/10 rounded-full filter blur-3xl pointer-events-none" />
+                  {/* Brilho radial suave no fundo */}
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/5 rounded-full filter blur-3xl pointer-events-none" />
+                </div>
+
+                {/* Conteúdo do Card */}
+                <div className="relative z-10 flex flex-col lg:flex-row items-center lg:items-center justify-between gap-8 md:gap-10">
+                  {/* Coluna Esquerda: Informações e Bio */}
+                  <div className="flex-1 text-left">
+                    <h3 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white mb-3">
+                      Até na chuva
+                    </h3>
+
+                    <p className="text-neutral-300 text-sm sm:text-base leading-relaxed max-w-2xl mb-6 font-normal">
+                      O tempo fechou? A gente não para! Quando o tempo estiver ruim, nublado ou chuvoso, conseguimos esse valor promocional exclusivo para você não deixar de produzir e vender seu imóvel!
+                    </p>
+
+                    {/* Lista de Recursos / Checks da Black com Drone Riscado */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-1">
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug line-through text-neutral-500 decoration-red-500 decoration-2">
+                            Captação com Drone 4K
+                          </span>
+                        </div>
+
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-200 font-medium">
+                            Captação com Câmera Profissional
+                          </span>
+                        </div>
+
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-200">
+                            Estabilização fluida com Gimbal profissional
+                          </span>
+                        </div>
+
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-200">
+                            Design de som imersivo e trilhas sonoras licenciadas
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-200">
+                            Gravação em perfil Log para finalização cinematográfica
+                          </span>
+                        </div>
+
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-200">
+                            Áudio profissional captado com Hollyland Lark M2
+                          </span>
+                        </div>
+
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-sky-500/20 text-sky-400">
+                            <Check size={11} strokeWidth={3} />
+                          </div>
+                          <span className="text-xs sm:text-[13px] leading-snug text-neutral-200">
+                            Entrega expressa com link de download em alta resolução
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Conteúdo do Card */}
-                  <div className="relative z-10 flex flex-col lg:flex-row items-center lg:items-center justify-between gap-8 md:gap-10">
-                    {/* Coluna Esquerda: Informações e Bio */}
-                    <div className="flex-1 text-left">
-                      <h3 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white mb-3">
-                        Até na chuva
-                      </h3>
-
-                      <p className="text-sky-100/85 text-sm sm:text-base leading-relaxed max-w-2xl mb-6 font-normal">
-                        O tempo fechou? A gente não para! Quando o tempo estiver ruim, nublado ou chuvoso, conseguimos esse valor promocional exclusivo para você não deixar de produzir e vender seu imóvel!
+                  {/* Coluna Direita: Preço Promocional e CTA */}
+                  <div className="w-full lg:w-auto shrink-0 flex flex-col sm:flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-center gap-5 p-5 sm:p-6 rounded-2xl bg-neutral-900 border border-neutral-800 shadow-inner">
+                    <div className="text-center sm:text-left lg:text-right">
+                      <div className="flex items-center justify-center sm:justify-start lg:justify-end gap-2 mb-1">
+                        <span className="text-xs font-semibold text-neutral-400 line-through">
+                          De R$ 250
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-sky-400 text-neutral-950 px-2 py-0.5 rounded-full">
+                          PROMOÇÃO
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-center sm:justify-start lg:justify-end gap-1.5 whitespace-nowrap">
+                        <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                          R$ 200
+                        </span>
+                        <span className="text-xs font-semibold text-neutral-400">
+                          / vídeo
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-medium text-sky-300 mt-1">
+                        O valor de 250 sai por 200
                       </p>
+                    </div>
 
-                          {/* Destaques / Benefícios */}
-                          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs sm:text-[13px] text-sky-200">
-                            <div className="flex items-center gap-2 bg-sky-950/70 border border-sky-800/50 px-3.5 py-2 rounded-xl">
-                              <Check size={14} className="text-sky-400 shrink-0" />
-                              <span>Valor promocional para dias nublados ou chuvosos</span>
-                            </div>
-                            <div className="flex items-center gap-2 bg-sky-950/70 border border-sky-800/50 px-3.5 py-2 rounded-xl">
-                              <Check size={14} className="text-sky-400 shrink-0" />
-                              <span>Drone e/ou Câmera adaptados com segurança</span>
-                            </div>
-                            <div className="flex items-center gap-2 bg-sky-950/70 border border-sky-800/50 px-3.5 py-2 rounded-xl">
-                              <Check size={14} className="text-sky-400 shrink-0" />
-                              <span>Tratamento de cor (Color Grading) otimizado</span>
-                            </div>
-                          </div>
-                        </div>
-
-                            {/* Coluna Direita: Preço Promocional e CTA */}
-                            <div className="w-full lg:w-auto shrink-0 flex flex-col sm:flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-center gap-5 p-5 sm:p-6 rounded-2xl bg-sky-950/80 border border-sky-500/30 shadow-inner">
-                              <div className="text-center sm:text-left lg:text-right">
-                                <div className="flex items-center justify-center sm:justify-start lg:justify-end gap-2 mb-1">
-                                  <span className="text-xs font-semibold text-sky-300/80 line-through">
-                                    De R$ 250
-                                  </span>
-                                  <span className="text-[10px] font-black uppercase tracking-wider bg-sky-400 text-sky-950 px-2 py-0.5 rounded-full">
-                                    PROMOÇÃO
-                                  </span>
-                                </div>
-                                <div className="flex items-baseline justify-center sm:justify-start lg:justify-end gap-1.5 whitespace-nowrap">
-                                  <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                                    R$ 200
-                                  </span>
-                                  <span className="text-xs font-semibold text-sky-300">
-                                    / vídeo
-                                  </span>
-                                </div>
-                                <p className="text-[11px] font-medium text-sky-200/90 mt-1">
-                                  O valor de 250 sai por 200
-                                </p>
-                              </div>
-
-                              <a
-                                href={getWhatsAppLink("Olá Daniel! Gostaria de aproveitar a condição promocional do plano 'Até na chuva' (R$ 200 por vídeo em dia chuvoso/nublado).")}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="w-full sm:w-auto lg:w-full py-3.5 px-6 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 text-sky-950 hover:text-black shadow-lg shadow-sky-500/30 transition-all duration-300 cursor-pointer active:scale-95"
-                              >
-                                <Camera size={16} />
-                                <span>Bora Gravar!</span>
-                              </a>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
+                    <a
+                      href={getWhatsAppLink("Olá Daniel! Gostaria de aproveitar a condição promocional do plano 'Até na chuva' (R$ 200 por vídeo em dia chuvoso/nublado).")}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full sm:w-auto lg:w-full py-3.5 px-6 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 text-neutral-950 hover:text-black shadow-lg shadow-sky-500/25 transition-all duration-300 cursor-pointer active:scale-95"
+                    >
+                      <Camera size={16} />
+                      <span>Bora Gravar!</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
 
                       {/* Seção Bora Gravar? com Círculo Giratório */}
                       <div ref={boraSectionRef} className="w-full overflow-visible mt-20 md:mt-28 mb-16 md:mb-24 px-4 flex flex-col items-center">
