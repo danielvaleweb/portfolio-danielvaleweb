@@ -5,6 +5,7 @@ import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Work from "./pages/Work";
 import Sobre from "./pages/Sobre";
+import Planos from "./pages/Planos";
 import Contato from "./pages/Contato";
 import Admin from "./pages/Admin";
 import Evaluate from "./pages/Evaluate";
@@ -28,6 +29,7 @@ function AnimatedRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/work" element={<Work />} />
           <Route path="/sobre" element={<Sobre />} />
+          <Route path="/planos" element={<Planos />} />
           <Route path="/contato" element={<Contato />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/avaliar/:projectId" element={<Evaluate />} />
@@ -42,9 +44,10 @@ function MainLayout() {
   const location = useLocation();
   const isAdmin = location.pathname === "/admin";
   const isEvaluate = location.pathname.startsWith("/avaliar");
+  const isPlanos = location.pathname === "/planos";
 
   return (
-    <main className="relative min-h-screen bg-white">
+    <main className={`relative min-h-screen ${isPlanos ? "bg-[#f7eee7]" : "bg-white"}`}>
       {!isAdmin && !isEvaluate && <Navbar />}
       <AnimatedRoutes />
       {!isAdmin && !isEvaluate && <Footer />}
