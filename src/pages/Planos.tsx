@@ -66,9 +66,9 @@ const plans: PlanItem[] = [
     popular: true,
     originalPrice: "De R$ 400",
     promoBadge: "PROMOÇÃO",
-    priceDisplay: "R$ 250",
+    priceDisplay: "R$ 220",
     pricePeriod: "/ vídeo",
-    priceSubtext: "R$ 2.500,00 por mês",
+    priceSubtext: "R$ 2.200,00 por mês",
     priceComparison: "Vídeos Avulsos R$ 250",
     priceComparisonSub: "Só na Black",
     description: "Drone + câmera. O pacote mensal mais pedido da Black Imobiliária com 10 vídeos completos em condição especial de campanha.",
@@ -81,7 +81,7 @@ const plans: PlanItem[] = [
       "Design de som imersivo e trilhas sonoras licenciadas",
       "Entrega expressa com link de download em alta resolução"
     ],
-    ctaMessage: "Olá Daniel! Quero contratar o plano PROFISSIONAL (Drone + Câmera por R$ 250 por vídeo / R$ 2.500 no mês)."
+    ctaMessage: "Olá Daniel! Quero contratar o plano PROFISSIONAL (Drone + Câmera por R$ 220 por vídeo / R$ 2.200 no mês)."
   },
   {
     id: "geracao-ia",
@@ -274,12 +274,15 @@ export default function Planos() {
                 ease: "easeInOut",
               },
             }}
-            className="absolute -top-[8%] sm:-top-[10%] md:-top-[12%] lg:-top-[14%] left-[50%] sm:left-[52%] md:left-[53%] w-36 h-36 sm:w-52 sm:h-52 md:w-72 md:h-72 lg:w-88 lg:h-88 xl:w-96 xl:h-96 pointer-events-none z-20 filter drop-shadow-[0_25px_40px_rgba(0,0,0,0.4)]"
+            className="absolute -top-[8%] sm:-top-[10%] md:-top-[12%] lg:-top-[14%] left-[50%] sm:left-[52%] md:left-[53%] w-36 h-36 sm:w-52 sm:h-52 md:w-72 md:h-72 lg:w-88 lg:h-88 xl:w-96 xl:h-96 pointer-events-none z-20"
           >
             <img
               src="https://www-cdn.djiits.com/dps/b011864ecbe030f5533bb4aa75654377.png"
               alt="Drone DJI Flutuando"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain pointer-events-none"
+              style={{
+                filter: "drop-shadow(0 75px 40px rgba(0, 0, 0, 0.2))",
+              }}
               referrerPolicy="no-referrer"
             />
           </motion.div>
@@ -340,12 +343,15 @@ export default function Planos() {
                               ease: "easeInOut",
                             },
                           }}
-                          className="absolute -bottom-8 -right-6 sm:-bottom-10 sm:-right-8 md:-bottom-12 md:-right-10 w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 pointer-events-none z-30 select-none filter drop-shadow-[0_20px_30px_rgba(0,0,0,0.35)]"
+                          className="absolute -bottom-8 -right-6 sm:-bottom-10 sm:-right-8 md:-bottom-12 md:-right-10 w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 pointer-events-none z-30 select-none"
                         >
                           <img
                             src="https://www-cdn.djiits.com/dps/b011864ecbe030f5533bb4aa75654377.png"
                             alt="Drone 4K DJI"
                             className="w-full h-full object-contain"
+                            style={{
+                              filter: "drop-shadow(0 45px 30px rgba(0, 0, 0, 0.2))",
+                            }}
                             referrerPolicy="no-referrer"
                           />
                         </motion.div>
