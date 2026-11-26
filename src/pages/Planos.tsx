@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useInView } from "motion/react";
-import { Check, Camera, Clock, ArrowUpRight, CloudRain, X } from "lucide-react";
+import { Check, Camera, Clock, ArrowUpRight, CloudRain, X, Eye } from "lucide-react";
 import BlurText from "../components/BlurText";
 import CircularText from "../components/CircularText";
 import RainEffect from "../components/rain/RainEffect";
@@ -113,6 +113,53 @@ export default function Planos() {
   const [showCenterCircle, setShowCenterCircle] = useState(false);
   const [showCircularText, setShowCircularText] = useState(false);
 
+  // Contador de pessoas ao vivo vendo a página
+  const [liveViewers, setLiveViewers] = useState(17);
+
+  useEffect(() => {
+    let timer: any;
+    const updateViewers = () => {
+      setLiveViewers((prev) => {
+        const delta = Math.floor(Math.random() * 5) - 2; // -2, -1, 0, +1, +2
+        const next = prev + delta;
+        return Math.max(12, Math.min(26, next));
+      });
+      timer = setTimeout(updateViewers, Math.random() * 4000 + 4000);
+    };
+
+    timer = setTimeout(updateViewers, 4500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Contagem regressiva até o último dia do ano (31 de Dezembro às 23:59:59)
+  const calculateOfferTimeLeft = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    let diff = endOfYear.getTime() - now.getTime();
+
+    if (diff < 0) {
+      const nextEndOfYear = new Date(currentYear + 1, 11, 31, 23, 59, 59, 999);
+      diff = Math.max(0, nextEndOfYear.getTime() - now.getTime());
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const minutes = Math.floor((diff / (1000 * 60)) % 60);
+    const seconds = Math.floor((diff / 1000) % 60);
+
+    return { days, hours, minutes, seconds };
+  };
+
+  const [offerTimeLeft, setOfferTimeLeft] = useState(calculateOfferTimeLeft);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setOfferTimeLeft(calculateOfferTimeLeft());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     if (!isBoraInView) return;
 
@@ -159,25 +206,70 @@ export default function Planos() {
             referrerPolicy="no-referrer"
           />
 
+          {/* Contador de Pessoas Vendo a Página - Liquid Glass Effect */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="absolute top-[30%] sm:top-[32%] md:top-[33%] left-[24%] sm:left-[26%] md:left-[28%] z-20 pointer-events-auto"
+          >
+            <div className="relative group overflow-hidden rounded-full p-[1px] shadow-[0_16px_36px_-6px_rgba(0,0,0,0.3),0_4px_16px_rgba(0,0,0,0.12)]">
+              {/* Borda externa com reflexo de luz líquida */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/95 via-white/50 to-white/20 pointer-events-none" />
+
+              {/* Corpo Liquid Glass */}
+              <div className="relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-full bg-gradient-to-b from-white/45 via-white/25 to-white/15 backdrop-blur-xl backdrop-saturate-200 shadow-[inset_0_2px_3px_rgba(255,255,255,0.9),inset_0_-2px_4px_rgba(0,0,0,0.12),inset_0_0_16px_rgba(255,255,255,0.45)] transition-all select-none">
+                
+                {/* Reflexo especular curvado superior (gloss highlight de vidro líquido) */}
+                <div className="absolute top-0 inset-x-2 h-[45%] rounded-t-full bg-gradient-to-b from-white/85 via-white/35 to-transparent pointer-events-none" />
+
+                {/* Brilho diagonal de reflexo vítreo intenso */}
+                <div className="absolute inset-0 rounded-full bg-[linear-gradient(115deg,rgba(255,255,255,0.7)_0%,rgba(255,255,255,0.25)_25%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.2)_70%,rgba(255,255,255,0.6)_100%)] pointer-events-none" />
+
+                {/* Feixe de reflexo animado líquido passando pelo vidro */}
+                <motion.div
+                  animate={{
+                    x: ["-120%", "220%"],
+                  }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 3.5,
+                    ease: "easeInOut",
+                    repeatDelay: 2.5,
+                  }}
+                  className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent skew-x-[-25deg] pointer-events-none"
+                />
+
+                {/* Conteúdo (sem círculo verde, tipografia com alto contraste e nitidez) */}
+                <div className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-neutral-900">
+                  <Eye size={14} className="text-neutral-900/90 shrink-0 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]" />
+                  <div className="flex items-center gap-1 text-[11px] sm:text-xs md:text-[13px] whitespace-nowrap">
+                    <span className="font-black text-neutral-950 tabular-nums tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
+                      {liveViewers}
+                    </span>
+                    <span className="text-neutral-900 font-semibold drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
+                      <span className="hidden sm:inline">pessoas vendo essa página</span>
+                      <span className="sm:hidden">vendo agora</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Drone Flutuando Acima do Ombro (Bem Maior e Mais Alto) */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{
               opacity: 1,
               scale: 1,
-              y: [-8, 10, -6, 9, -8],
-              rotate: [-1.5, 2, -1.8, 1.5, -1.5],
+              y: [-10, 10, -10],
             }}
             transition={{
               opacity: { duration: 0.8 },
               scale: { duration: 0.8 },
               y: {
-                duration: 4.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              },
-              rotate: {
-                duration: 4.5,
+                duration: 3.5,
                 repeat: Infinity,
                 ease: "easeInOut",
               },
@@ -236,20 +328,14 @@ export default function Planos() {
                           animate={{
                             opacity: 1,
                             scale: 1,
-                            y: [-6, 8, -5, 7, -6],
-                            rotate: [-1.2, 1.8, -1.5, 1.2, -1.2],
+                            y: [-7, 7, -7],
                           }}
                           exit={{ opacity: 0, scale: 0.7, y: 15, transition: { duration: 0.25 } }}
                           transition={{
                             opacity: { duration: 0.35 },
                             scale: { duration: 0.35 },
                             y: {
-                              duration: 4.2,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            },
-                            rotate: {
-                              duration: 4.2,
+                              duration: 3.2,
                               repeat: Infinity,
                               ease: "easeInOut",
                             },
@@ -580,8 +666,87 @@ export default function Planos() {
             </div>
           </motion.div>
 
+          {/* Relógio Minimalista - Contagem Regressiva até o Fim do Ano */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="w-full flex flex-col items-center justify-center mt-20 sm:mt-24 md:mt-32 mb-3 sm:mb-4 px-4"
+          >
+            {/* Texto Acima do Relógio */}
+            <span className="text-xs sm:text-sm md:text-[15px] font-bold uppercase tracking-wider text-neutral-900 mb-3.5 sm:mb-4 select-none">
+              Oferta Black encerra em
+            </span>
+
+            <div className="flex items-center justify-center gap-1.5 sm:gap-3 md:gap-4 select-none">
+              {/* Bloco Dias */}
+              <div className="flex flex-col items-center">
+                <div className="min-w-[58px] sm:min-w-[76px] md:min-w-[88px] py-2 sm:py-3 px-2 sm:px-3 rounded-2xl bg-neutral-200/90 border border-neutral-300/80 shadow-sm flex items-center justify-center">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-black font-helvetica tracking-tight tabular-nums text-black">
+                    {String(offerTimeLeft.days).padStart(2, "0")}
+                  </span>
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-neutral-700 mt-2">
+                  Dias
+                </span>
+              </div>
+
+              {/* Dois Pontos */}
+              <span className="text-xl sm:text-2xl md:text-3xl font-black text-neutral-600 -mt-6 select-none font-helvetica">
+                :
+              </span>
+
+              {/* Bloco Horas */}
+              <div className="flex flex-col items-center">
+                <div className="min-w-[58px] sm:min-w-[76px] md:min-w-[88px] py-2 sm:py-3 px-2 sm:px-3 rounded-2xl bg-neutral-200/90 border border-neutral-300/80 shadow-sm flex items-center justify-center">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-black font-helvetica tracking-tight tabular-nums text-black">
+                    {String(offerTimeLeft.hours).padStart(2, "0")}
+                  </span>
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-neutral-700 mt-2">
+                  Horas
+                </span>
+              </div>
+
+              {/* Dois Pontos */}
+              <span className="text-xl sm:text-2xl md:text-3xl font-black text-neutral-600 -mt-6 select-none font-helvetica">
+                :
+              </span>
+
+              {/* Bloco Minutos */}
+              <div className="flex flex-col items-center">
+                <div className="min-w-[58px] sm:min-w-[76px] md:min-w-[88px] py-2 sm:py-3 px-2 sm:px-3 rounded-2xl bg-neutral-200/90 border border-neutral-300/80 shadow-sm flex items-center justify-center">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-black font-helvetica tracking-tight tabular-nums text-black">
+                    {String(offerTimeLeft.minutes).padStart(2, "0")}
+                  </span>
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-neutral-700 mt-2">
+                  Minutos
+                </span>
+              </div>
+
+              {/* Dois Pontos */}
+              <span className="text-xl sm:text-2xl md:text-3xl font-black text-neutral-600 -mt-6 select-none font-helvetica">
+                :
+              </span>
+
+              {/* Bloco Segundos */}
+              <div className="flex flex-col items-center">
+                <div className="min-w-[58px] sm:min-w-[76px] md:min-w-[88px] py-2 sm:py-3 px-2 sm:px-3 rounded-2xl bg-neutral-200/90 border border-neutral-300/80 shadow-sm flex items-center justify-center">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-black font-helvetica tracking-tight tabular-nums text-black">
+                    {String(offerTimeLeft.seconds).padStart(2, "0")}
+                  </span>
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-neutral-700 mt-2">
+                  Segundos
+                </span>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Seção Bora Gravar? com Círculo Giratório */}
-          <div ref={boraSectionRef} className="w-full overflow-visible mt-20 md:mt-28 mb-16 md:mb-24 px-4 flex flex-col items-center">
+          <div ref={boraSectionRef} className="w-full overflow-visible mt-4 sm:mt-6 md:mt-8 mb-16 md:mb-24 px-4 flex flex-col items-center">
             {/* MODO MOBILE: Quebra de linha ("Bora" / "Gravar?"), fonte bem maior e Círculo com seta ao lado do "Bora" */}
             <div
               className="flex md:hidden flex-col items-center select-none cursor-pointer"
